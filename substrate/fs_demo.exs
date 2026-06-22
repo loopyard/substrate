@@ -1,5 +1,5 @@
 # Substrate — filesystem capability, end to end.
-# Run: mix run demo.exs
+# Run: mix run fs_demo.exs
 alias Substrate.Show
 
 defmodule Demo do
