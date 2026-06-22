@@ -28,7 +28,20 @@ defmodule Substrate.Predicates do
 
   def outside_safe?(_root, _args), do: false
 
+  @doc "True when the resolved path is inside a given top-level zone dir."
+  def in_zone?(root, %{path: rel}, zone) do
+    abs = Path.expand(Path.join(root, rel))
+    dir = Path.join(root, zone)
+    abs == dir or String.starts_with?(abs, dir <> "/")
+  end
+
+  def in_zone?(_root, _args, _zone), do: false
+
   def lookup("escapes-jail"), do: &escapes_jail?/2
   def lookup("outside-safe"), do: &outside_safe?/2
+  def lookup("in-bulk"), do: &in_zone?(&1, &2, "bulk")
+  def lookup("in-data"), do: &in_zone?(&1, &2, "data")
+  def lookup("in-published"), do: &in_zone?(&1, &2, "published")
+  def lookup("in-archive"), do: &in_zone?(&1, &2, "archive")
   def lookup(other), do: raise("unknown policy predicate: #{other}")
 end

@@ -33,7 +33,7 @@ defmodule Substrate.Membrane do
         {disp(:denied, %{reason: reason}), state}
 
       true ->
-        case check_rate(cap, state) do
+        case check_rate(cap, state, state.root, args) do
           {:limited, retry} ->
             {disp(:"rate-limited", %{retry_after: retry}), state}
 
@@ -69,12 +69,21 @@ defmodule Substrate.Membrane do
     end)
   end
 
-  defp check_rate(cap, state) do
-    case Enum.find(cap.policy, &match?({:rate, _, _}, &1)) do
+  defp check_rate(cap, state, root, args) do
+    case Enum.find(cap.policy, &match?({:rate, _, _, _}, &1)) do
       nil ->
         {:ok, state}
 
-      {:rate, limit, window} ->
+      {:rate, _l, _w, {_name, gfun}} = rule ->
+        # location-guarded rate: only applies where the guard holds (else unlimited)
+        if gfun.(root, args), do: apply_rate(rule, cap, state), else: {:ok, state}
+
+      rule ->
+        apply_rate(rule, cap, state)
+    end
+  end
+
+  defp apply_rate({:rate, limit, window, _guard}, cap, state) do
         now = System.os_time(:second)
         {count, start} = Map.get(state.rate, cap.name, {0, now})
         {count, start} = if now - start >= window, do: {0, now}, else: {count, start}
@@ -84,7 +93,6 @@ defmodule Substrate.Membrane do
         else
           {:ok, %{state | rate: Map.put(state.rate, cap.name, {count + 1, start})}}
         end
-    end
   end
 
   defp confirm_required?(cap, root, args) do

@@ -51,10 +51,16 @@ defmodule Substrate.Capability do
     %{name: String.to_atom(name), type: print(type), doc: doc}
   end
 
-  # (rate "20/min") -> {:rate, count, window_seconds}
+  # (rate "20/min") -> {:rate, count, window, guard}   guard = nil | {name, fun}
   defp compile_rule({:list, [{:sym, "rate"}, {:str, spec}]}) do
-    [n, unit] = String.split(spec, "/")
-    {:rate, String.to_integer(n), window_seconds(unit)}
+    {n, w} = parse_rate(spec)
+    {:rate, n, w, nil}
+  end
+
+  # (rate "5/min" in-data) -> only counts/limits when the guard predicate holds
+  defp compile_rule({:list, [{:sym, "rate"}, {:str, spec}, {:sym, guard}]}) do
+    {n, w} = parse_rate(spec)
+    {:rate, n, w, {guard, Predicates.lookup(guard)}}
   end
 
   defp compile_rule({:list, [{:sym, "deny-if"}, {:sym, pred}]}),
@@ -62,6 +68,11 @@ defmodule Substrate.Capability do
 
   defp compile_rule({:list, [{:sym, "confirm-if"}, {:sym, pred}]}),
     do: {:confirm_if, pred, Predicates.lookup(pred)}
+
+  defp parse_rate(spec) do
+    [n, unit] = String.split(spec, "/")
+    {String.to_integer(n), window_seconds(unit)}
+  end
 
   defp window_seconds("sec"), do: 1
   defp window_seconds("min"), do: 60
@@ -125,7 +136,8 @@ defmodule Substrate.Capability do
   end
 
   # honest-but-abstract: keep the *fact* of a limit / review, drop the *rule*.
-  defp abstract_rule({:rate, n, w}), do: "(rate #{inspect("#{n}/#{unit(w)}")})"
+  defp abstract_rule({:rate, n, w, nil}), do: "(rate #{inspect("#{n}/#{unit(w)}")})"
+  defp abstract_rule({:rate, n, w, {guard, _}}), do: "(rate #{inspect("#{n}/#{unit(w)}")} #{guard})"
   defp abstract_rule({:confirm_if, _pred, _fun}), do: "(confirm-if human-review)"
   defp abstract_rule({:deny_if, _pred, _fun}), do: nil
 
