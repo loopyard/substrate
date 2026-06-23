@@ -10,8 +10,13 @@ This is a working proof-of-concept of the kernel described in
 
 ```bash
 mix compile
-./demos.sh        # run all four demos, or: ./demos.sh zoned
+./demos.sh        # run all the demos, or: ./demos.sh zoned
 ```
+
+New here as an integrator? **[`INTEGRATION.md`](INTEGRATION.md)** is the
+developer's-eye walkthrough: how to load `http` + `fs` onto one surface, bend
+them with policy, and hand the result to an LLM — including exactly what the
+model sees and what stays behind the wall.
 
 ---
 
