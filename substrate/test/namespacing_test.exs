@@ -1,7 +1,7 @@
 defmodule Substrate.NamespacingTest do
   @moduledoc """
   Name conflicts are inevitable, so resolution is built in, not bolted on:
-  the stdlib is reachable namespaced (`coll/reduce`) as well as bare, so a user
+  the stdlib is reachable namespaced (`collection/reduce`) as well as bare, so a user
   `defn` can shadow a bare name without losing the builtin; and mounting refuses
   to silently clobber a capability, offering `as:` to rename a namespace.
   """
@@ -17,21 +17,21 @@ defmodule Substrate.NamespacingTest do
     test "every builtin is reachable bare and as ns/name" do
       s = fresh()
       assert 10 = eval(s, "(reduce (fn [a x] (+ a x)) 0 (range 5))")
-      assert 10 = eval(s, "(coll/reduce (fn [a x] (+ a x)) 0 (coll/range 5))")
-      assert ["a", "b"] = eval(s, ~s|(str/split "a,b" ",")|)
+      assert 10 = eval(s, "(collection/reduce (fn [a x] (+ a x)) 0 (collection/range 5))")
+      assert ["a", "b"] = eval(s, ~s|(string/split "a,b" ",")|)
       assert 1 = eval(s, "(math/mod 7 3)")
     end
 
     test "a user defn shadows the bare name but the builtin survives under its ns" do
       s = fresh()
-      prog = "(do (defn reduce [a b] 999) (list (reduce 1 2) (coll/reduce (fn [a x] (+ a x)) 0 (range 5))))"
+      prog = "(do (defn reduce [a b] 999) (list (reduce 1 2) (collection/reduce (fn [a x] (+ a x)) 0 (range 5))))"
       assert [999, 10] = eval(s, prog)
     end
 
     test "the registry advertises its namespaces" do
-      assert "coll" in Stdlib.namespaces()
+      assert "collection" in Stdlib.namespaces()
       assert "math" in Stdlib.namespaces()
-      assert Stdlib.builtin?("coll/reduce")
+      assert Stdlib.builtin?("collection/reduce")
       assert Stdlib.builtin?("reduce")
     end
   end
@@ -56,7 +56,7 @@ defmodule Substrate.NamespacingTest do
 
     test "a substrate may not claim a stdlib namespace" do
       s = fresh()
-      sub = "(substrate coll \"x\" (capability coll/x \"y\" (params (a string)) (returns (record)) (bind Substrate.FS.read/2)))"
+      sub = "(substrate collection \"x\" (capability collection/x \"y\" (params (a string)) (returns (record)) (bind Substrate.FS.read/2)))"
             |> Substrate.read_substrate()
       assert {:error, msg} = Substrate.mount(s, sub, [])
       assert msg =~ "shadows a stdlib namespace"

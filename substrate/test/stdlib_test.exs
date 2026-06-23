@@ -1,6 +1,6 @@
 defmodule Substrate.StdlibTest do
   @moduledoc """
-  The stdlib, grouped into Math/Logic/Coll/Str/Maps/Json behind the
+  The stdlib, grouped into Math/Logic/Collection/String/Maps/Json behind the
   Substrate.Lisp.Stdlib registry. These exercise each group through the real
   eval seam, plus the registry's discovery and clean bad-arity fault.
   """
@@ -39,7 +39,7 @@ defmodule Substrate.StdlibTest do
     end
   end
 
-  describe "Coll" do
+  describe "Collection" do
     test "build, transform, fold" do
       assert [0, 1, 2] = val("(range 3)")
       assert [3, 2, 1] = val("(reverse (list 1 2 3))")
@@ -60,9 +60,9 @@ defmodule Substrate.StdlibTest do
     end
   end
 
-  describe "Str" do
+  describe "String" do
     test "concatenation, split, case, prefixes" do
-      assert "a1" = val(~s|(str "a" 1)|)
+      assert "a1" = val(~s|(string "a" 1)|)
       assert ["a", "b", "c"] = val(~s|(split "a,b,c" ",")|)
       assert "AB" = val(~s|(upcase "ab")|)
       assert true == val(~s|(starts-with? "hello" "he")|)
@@ -107,7 +107,7 @@ defmodule Substrate.StdlibTest do
 
     test "the core stdlib names are all present" do
       have = MapSet.new(Stdlib.names())
-      for n <- ~w(+ / mod = not map filter reduce range cons count str split get assoc parse-json) do
+      for n <- ~w(+ / mod = not map filter reduce range cons count string split get assoc parse-json) do
         assert MapSet.member?(have, n), "missing builtin #{n}"
       end
     end

@@ -78,7 +78,7 @@ not one tool-call per turn:
 ```lisp
 ;; one emission: list a dir, read each file, branch on the disposition
 (defn summarize [name]
-  (let [r (fs/read :path (str "notes/" name))]
+  (let [r (fs/read :path (string "notes/" name))]
     (case r
       (:done d)   (log name "->" (:bytes d) "bytes")
       (:denied e) (log name "denied"))))
@@ -206,7 +206,7 @@ running substrate:
   (capability gh/get
     (params (url string "absolute https URL"))
     (returns (record (status int) (body string) (bytes int)))
-    (auth   (header "Authorization" (str "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
+    (auth   (header "Authorization" (string "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
     (policy (deny-if host-denied) (rate "30/min"))
     (bind   Substrate.HTTP.get/2)))
 ```

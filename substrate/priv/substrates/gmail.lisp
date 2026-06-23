@@ -31,7 +31,7 @@
      restricted metadata-scope token."
     (params)
     (returns (record (email string) (messages_total int) (threads_total int)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (example (gmail/profile))
     (bind    Substrate.Gmail.profile/2))
 
@@ -40,7 +40,7 @@
      Gmail's whole-mailbox size."
     (params  (count int "how many recent ids to return (1..500)"))
     (returns (record (ids (list string)) (count int) (estimate int)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "30/min"))
     (example (gmail/recent :count 25))
     (bind    Substrate.Gmail.recent/2))
@@ -51,7 +51,7 @@
     (params  (id string "the message id from gmail/recent or gmail/search"))
     (returns (record (id string) (from string) (to string) (subject string)
                      (date string) (snippet string)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "120/min"))
     (example (gmail/headers :id "18f0a1b2c3d4e5f6"))
     (bind    Substrate.Gmail.headers/2))
@@ -60,7 +60,7 @@
     "Search the mailbox with Gmail query syntax. Returns matching message ids."
     (params  (query string "Gmail search, e.g. \"is:unread from:jane@acme.com\""))
     (returns (record (ids (list string)) (count int) (query string)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "30/min"))
     (example (gmail/search :query "is:unread newer_than:7d"))
     (bind    Substrate.Gmail.search/2))
@@ -70,7 +70,7 @@
     (params  (id string "the message id from gmail/search"))
     (returns (record (id string) (from string) (subject string)
                      (date string) (snippet string) (body string)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "60/min"))
     (example (gmail/read :id "18f0a1b2c3d4e5f6"))
     (bind    Substrate.Gmail.read/2))
@@ -82,7 +82,7 @@
              (subject string "subject line")
              (body    string "plain-text message body"))
     (returns (record (id string) (thread_id string) (to string) (subject string)))
-    (auth    (header "Authorization" (str "Bearer " (secret :gmail_token))))
+    (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (confirm-if always)
              (rate       "20/hour"))
     (example (gmail/send :to "jane@acme.com" :subject "Re: lunch" :body "Sounds good!"))

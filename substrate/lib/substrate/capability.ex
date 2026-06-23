@@ -78,7 +78,7 @@ defmodule Substrate.Capability do
   defp apply_clause({:list, [{:sym, "bind"}, {:sym, target}]}, cap),
     do: %{cap | bind: compile_bind(target)}
 
-  # (auth (header "Authorization" (str "Bearer " (secret :gh-token)))) — stripped
+  # (auth (header "Authorization" (string "Bearer " (secret :gh-token)))) — stripped
   # at the wall like `bind`; resolved against the vault per call by the membrane.
   defp apply_clause({:list, [{:sym, "auth"} | _]} = form, cap),
     do: %{cap | auth: Auth.compile(form)}

@@ -11,11 +11,11 @@ defmodule Substrate.Auth do
 
   ## The tiny template language (trusted-tier, never agent-facing)
 
-      (auth (header "Authorization" (str "Bearer " (secret :gh-token)))
+      (auth (header "Authorization" (string "Bearer " (secret :gh-token)))
             (header "Accept"        "application/vnd.github+json"))
 
   A value expression is a string literal, a `(secret :key)` lookup, or a
-  `(str part…)` concatenation of those. That is deliberately the whole grammar —
+  `(string part…)` concatenation of those. That is deliberately the whole grammar —
   enough to build a bearer/basic header, too little to be a general computer.
   """
 
@@ -35,7 +35,7 @@ defmodule Substrate.Auth do
 
   defp compile_value({:str, s}), do: [{:lit, s}]
   defp compile_value({:list, [{:sym, "secret"}, {:kw, key}]}), do: [{:secret, key}]
-  defp compile_value({:list, [{:sym, "str"} | parts]}), do: Enum.flat_map(parts, &compile_value/1)
+  defp compile_value({:list, [{:sym, "string"} | parts]}), do: Enum.flat_map(parts, &compile_value/1)
 
   @doc """
   Resolve a compiled header spec against the vault into concrete

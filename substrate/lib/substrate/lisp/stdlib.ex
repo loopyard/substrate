@@ -8,9 +8,9 @@ defmodule Substrate.Lisp.Stdlib do
 
     * `Math`  — `+ - * / quot rem mod inc dec abs min max`
     * `Logic` — `= not < > <= >=`
-    * `Coll`  — sequences: `count first rest nth reverse sort cons conj concat
+    * `Collection`  — sequences: `count first rest nth reverse sort cons conj concat
       range contains? map filter reduce list`
-    * `Str`   — `str join split upcase downcase starts-with? ends-with?`
+    * `String`  — `string join split upcase downcase starts-with? ends-with?`
     * `Maps`  — `get assoc keys vals`
     * `Json`  — `parse-json to-json`
 
@@ -18,21 +18,21 @@ defmodule Substrate.Lisp.Stdlib do
   name → group table once at compile time and `invoke/3` dispatches. A bad-arity
   call surfaces as a clean fault, not a crash. `truthy?/1` lives here too — the
   one value-semantics primitive both the evaluator (`if`/`cond`/`and`/`or`) and
-  `Coll.filter` share, so there is a single source of truth.
+  `Collection.filter` share, so there is a single source of truth.
 
   Adding a builtin is local: add a `call/3` clause and its name to a group's
   `names/0`. To expose builtins *namespaced* in the Lisp itself later (e.g.
-  `str/split`), the group structure is already the seam to do it.
+  `string/split`), the group structure is already the seam to do it.
   """
 
   alias Substrate.{Lisp.Error, Show}
-  alias Substrate.Lisp.Stdlib.{Math, Logic, Coll, Str, Maps, Json}
+  alias Substrate.Lisp.Stdlib.{Math, Logic, Collection, String, Maps, Json}
 
-  @groups [Math, Logic, Coll, Str, Maps, Json]
+  @groups [Math, Logic, Collection, String, Maps, Json]
 
   # lookup-name -> {group, bare-name}, resolved once at compile time. Each
   # builtin is reachable two ways: bare (auto-referred, e.g. `reduce`) and
-  # namespaced (`coll/reduce`). The namespaced form always reaches the builtin
+  # namespaced (`collection/reduce`). The namespaced form always reaches the builtin
   # even when a user `defn` shadows the bare name — so a collision is never a
   # dead end.
   @table Enum.reduce(@groups, %{}, fn g, acc ->

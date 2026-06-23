@@ -1,11 +1,11 @@
-defmodule Substrate.Lisp.Stdlib.Str do
-  @moduledoc "Stdlib group: strings. `str` concatenates any displayed values."
+defmodule Substrate.Lisp.Stdlib.String do
+  @moduledoc "Stdlib group: strings. `string` concatenates any displayed values."
   alias Substrate.Show
 
-  def namespace, do: "str"
-  def names, do: ~w(str join split upcase downcase starts-with? ends-with?)
+  def namespace, do: "string"
+  def names, do: ~w(string join split upcase downcase starts-with? ends-with?)
 
-  def call("str", args, _ap), do: Enum.map_join(args, "", &Show.display/1)
+  def call("string", args, _ap), do: Enum.map_join(args, "", &Show.display/1)
   def call("join", [coll, sep], _ap), do: Enum.map_join(coll, sep, &Show.display/1)
   def call("split", [s, sep], _ap) when is_binary(s) and is_binary(sep), do: String.split(s, sep)
   def call("upcase", [s], _ap) when is_binary(s), do: String.upcase(s)

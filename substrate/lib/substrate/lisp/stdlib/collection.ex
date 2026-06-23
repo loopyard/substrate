@@ -1,4 +1,4 @@
-defmodule Substrate.Lisp.Stdlib.Coll do
+defmodule Substrate.Lisp.Stdlib.Collection do
   @moduledoc """
   Stdlib group: sequences. `count`/`contains?` are polymorphic over lists, maps,
   and (for count) strings. The higher-order ops — `map`/`filter`/`reduce` — call
@@ -7,7 +7,7 @@ defmodule Substrate.Lisp.Stdlib.Coll do
   """
   alias Substrate.Lisp.Stdlib
 
-  def namespace, do: "coll"
+  def namespace, do: "collection"
 
   def names,
     do: ~w(count first rest nth empty? reverse sort cons conj concat range contains? map filter reduce list)

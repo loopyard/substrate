@@ -19,5 +19,5 @@
                    "/etc/notes.bak"                 ;; outside roots -> denied
                    "/home/../root/sneaky.bak")]     ;; climb-out -> resolved, denied
     (case (fs/write :path dest :content saved)
-      (:done r)   (io/print :text (str "saved  -> " (:path r)))
-      (:denied d) (io/print :text (str "denied -> " dest " :: " (:reason d))))))
+      (:done r)   (io/print :text (string "saved  -> " (:path r)))
+      (:denied d) (io/print :text (string "denied -> " dest " :: " (:reason d))))))
