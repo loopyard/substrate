@@ -69,6 +69,22 @@ defmodule Substrate.Server do
   @doc "The trusted-side audit log: every adjudicated call, oldest first."
   def audit(server), do: GenServer.call(server, {:audit})
 
+  @doc """
+  The effects currently parked in the approval queue — `[{handle, name, args}]`,
+  oldest handle first. A trusted-side view (the operator/monitor needs the list
+  to rule on it); the agent only ever learns about a handle it was handed back by
+  its own `:queued` disposition.
+  """
+  def pending(server), do: GenServer.call(server, {:pending})
+
+  @doc """
+  Like `describe/2` but with every capability's policy rules **revealed**,
+  regardless of the namespace's `reveal_rules` flag. This is the trusted-only
+  X-ray for an operator debugging a surface — it deliberately does *not* go
+  through the agent's `{:describe, target}` path, so the agent can never reach it.
+  """
+  def reveal(server, target \\ nil), do: GenServer.call(server, {:reveal, target})
+
   # the "human" (or a monitor agent) ruling on a queued effect
   def approve(server, handle), do: GenServer.call(server, {:resolve, handle, :approve})
   def deny(server, handle), do: GenServer.call(server, {:resolve, handle, :deny})
@@ -132,6 +148,19 @@ defmodule Substrate.Server do
   def handle_call({:audit}, _from, state),
     do: {:reply, Enum.reverse(state.audit), state}
 
+  def handle_call({:pending}, _from, state) do
+    pend =
+      state.queue
+      |> Enum.filter(fn {_h, eff} -> eff.status == :pending end)
+      |> Enum.sort_by(fn {"eff_" <> n, _} -> String.to_integer(n) end)
+      |> Enum.map(fn {h, eff} -> {h, eff.name, eff.args} end)
+
+    {:reply, pend, state}
+  end
+
+  def handle_call({:reveal, target}, _from, state),
+    do: {:reply, render_describe(state, target, true), state}
+
   def handle_call({:known?, name}, _from, state),
     do: {:reply, Map.has_key?(state.caps, name), state}
 
@@ -154,15 +183,18 @@ defmodule Substrate.Server do
 
   # --- describe rendering: the self-describing surface ---
 
-  # no target: list every mounted substrate
-  defp render_describe(state, nil),
+  # no target: list every mounted substrate. `force_reveal` is the trusted-only
+  # operator X-ray (`Server.reveal/2`); the agent's path always passes false.
+  defp render_describe(state, target, force_reveal \\ false)
+
+  defp render_describe(state, nil, _force),
     do: Enum.map_join(state.subs, "\n\n", &render_namespace(&1, state))
 
-  defp render_describe(state, target) do
+  defp render_describe(state, target, force) do
     cond do
       sub = Enum.find(state.subs, &(&1.ns == target)) -> render_namespace(sub, state)
       Map.has_key?(state.caps, target) ->
-        Capability.describe(state.caps[target], reveal: reveal_for?(state, target))
+        Capability.describe(state.caps[target], reveal: force or reveal_for?(state, target))
       true -> "; unknown: #{target}"
     end
   end
