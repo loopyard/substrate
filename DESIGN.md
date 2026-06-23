@@ -218,6 +218,90 @@ stability — the agent can always rebuild without burning the house down.
 
 ---
 
+## Prior art & threat model
+
+Substrate is less a new idea than the convergence of two old ones — *object
+capabilities* and *code-as-action* — aimed at LLM agents. Naming the lineage is
+also how we name the threat model, because the prior art is largely a record of
+what fails.
+
+### The structural divide: additive vs subtractive
+
+Every sandbox is one of two kinds:
+
+- **Subtractive** — start from a full runtime with ambient authority and
+  *remove* the dangerous parts (nil out `os`/`io`, strip `process`/`require`,
+  freeze a prototype). A blocklist. It leaks by default: there is always one more
+  door — `process.env`, Lua's `debug` library, an error-stack walk. The genre's
+  tombstones: Python's `rexec`/`Bastion` (abandoned as unsafe in principle),
+  Java's applet `SecurityManager` (a perpetual CVE farm, now being removed —
+  JEP 411/486), Node's `vm2` (deprecated by its own maintainer after repeated
+  unfixable escapes).
+- **Additive** — start from *nothing* and grant powers explicitly. There is no
+  `env` to leak because env access would be an ungranted capability. The question
+  stops being "did we remember to remove everything dangerous?" (impossible) and
+  becomes "is the small set we *added* safe?" (auditable). Substrate is additive.
+
+### Object-capability lineage (the additive answer)
+
+- **E** (Mark Miller) — the foundational ocap language: no ambient authority, you
+  may act only on references you hold. Substrate's "the program names only the
+  capabilities it was handed" is straight from here.
+- **SES / Hardened JavaScript** (Agoric/Endo — `lockdown()`, frozen primordials,
+  Compartments; the TC39 Realms/Compartments work). The serious answer to "a JS
+  sandbox that doesn't leak," reached *after* vm2 — and it is the same design as
+  Substrate: kill ambient authority, endow explicitly. The most directly
+  comparable system.
+- **WASI / the WASM component model** — modules have zero ambient authority by
+  construction; they call only host-provided imports. Preview 2 is explicitly
+  capability-based (a preopened directory handle, no global `open()`). The
+  industry quietly converging on this model.
+- **Capsicum** (FreeBSD capability mode) and **seL4** (formally-verified
+  capability microkernel) — the OS-level expression of the same principle.
+
+### Code-as-action lineage (the agent side)
+
+- **CodeAct** ("Executable Code Actions Elicit Better LLM Agents," 2024) — agents
+  emit a *program*, not a JSON tool call. The same core move as Substrate's
+  harness — but CodeAct runs Python in a Jupyter sandbox, the *subtractive*,
+  leaky kind.
+- **smolagents** (HuggingFace) `CodeAgent` — went code-as-action and concluded it
+  had to *write its own restricted interpreter* (a whitelisted Python-AST subset)
+  rather than trust real Python sandboxing. Independent confirmation of
+  Substrate's "a small language you fully control" choice.
+
+### Threat model & defense-in-depth
+
+Substrate's confidentiality/integrity boundary is the **interpreter**, not the
+OS. It holds *by construction*: the evaluator's dispatch is a closed set — special
+forms + builtins (a fixed pattern-match, not `Kernel.apply`) + explicitly bound
+capabilities — with no `Code.eval`, no `binary_to_term`, and no path from program
+data to arbitrary BEAM code. There is no ambient authority to leak.
+
+What remains is *availability* (DoS) plus a short list of **BEAM-specific ambient
+hazards** the runtime must close to earn the word "airtight":
+
+- **Atom exhaustion** — interning program-supplied symbols via `String.to_atom`
+  fills the global, un-GC'd atom table and crashes the node. (Use
+  `to_existing_atom`, or keep them as binaries as `:sym` already does.)
+- **Resource exhaustion** — an infinite loop or a giant allocation. Run the
+  evaluator in a spawned process with `max_heap_size`, a reduction/step budget
+  that aborts, and a wall-clock timeout.
+- **Parser depth** — deeply nested input overflows the parser stack; bound it.
+
+The BEAM is an unusually *good* host for closing these: per-process
+`max_heap_size`, preemptive scheduling (no program can monopolize a core), cheap
+isolated processes, and supervised `Process.exit` for clean teardown are exactly
+the resource defenses that are hard to get elsewhere (you cannot cap a thread's
+memory or preempt a tight loop cleanly in CPython). So the right posture is **both
+layers**, each doing what it is best at: the capability interpreter is the
+integrity/confidentiality wall (airtight by construction), and a **microVM**
+(Firecracker/gVisor, à la E2B) is the availability/blast-radius backstop. The
+lesson of all this prior art is that any single layer eventually has a door you
+did not know about.
+
+---
+
 ## Likely first proof-of-concept
 
 Smallest kernel that makes the central claims real instead of slideware:
