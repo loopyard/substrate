@@ -3,6 +3,7 @@ defmodule Substrate.Lisp.Stdlib.Maps do
   Stdlib group: maps. Keys are whatever the program supplies — string keys from
   `parse-json`, keyword atoms from literals; `assoc` returns a new map (pure).
   """
+  def namespace, do: "map"
   def names, do: ~w(get assoc keys vals)
 
   def call("get", [m, k], _ap) when is_map(m), do: Map.get(m, k)

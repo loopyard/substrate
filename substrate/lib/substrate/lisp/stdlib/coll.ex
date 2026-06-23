@@ -7,6 +7,8 @@ defmodule Substrate.Lisp.Stdlib.Coll do
   """
   alias Substrate.Lisp.Stdlib
 
+  def namespace, do: "coll"
+
   def names,
     do: ~w(count first rest nth empty? reverse sort cons conj concat range contains? map filter reduce list)
 

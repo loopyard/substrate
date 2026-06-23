@@ -6,6 +6,7 @@ defmodule Substrate.Lisp.Stdlib.Json do
   """
   alias Substrate.JSON
 
+  def namespace, do: "json"
   def names, do: ~w(parse-json to-json)
 
   def call("parse-json", [s], _ap) when is_binary(s) do

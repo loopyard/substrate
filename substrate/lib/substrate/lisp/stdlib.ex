@@ -30,23 +30,35 @@ defmodule Substrate.Lisp.Stdlib do
 
   @groups [Math, Logic, Coll, Str, Maps, Json]
 
-  # name -> group module, resolved once at compile time
-  @table for(g <- @groups, n <- g.names(), into: %{}, do: {n, g})
+  # lookup-name -> {group, bare-name}, resolved once at compile time. Each
+  # builtin is reachable two ways: bare (auto-referred, e.g. `reduce`) and
+  # namespaced (`coll/reduce`). The namespaced form always reaches the builtin
+  # even when a user `defn` shadows the bare name — so a collision is never a
+  # dead end.
+  @table Enum.reduce(@groups, %{}, fn g, acc ->
+           Enum.reduce(g.names(), acc, fn n, acc ->
+             acc |> Map.put(n, {g, n}) |> Map.put("#{g.namespace()}/#{n}", {g, n})
+           end)
+         end)
 
-  @doc "Is `name` a stdlib builtin?"
+  @doc "Is `name` a stdlib builtin (bare or `ns/name`)?"
   def builtin?(name), do: Map.has_key?(@table, name)
 
-  @doc "Every builtin name (for tooling / discovery)."
+  @doc "Every builtin lookup name — bare and namespaced (for tooling / discovery)."
   def names, do: Map.keys(@table)
 
+  @doc "The stdlib namespaces, in surface order."
+  def namespaces, do: Enum.map(@groups, & &1.namespace())
+
   @doc """
-  Invoke builtin `name` with evaluated `args`. `apply` is the evaluator's
-  closure-applier — `(closure, argvals) -> value` — used by the higher-order
-  collection ops; everything else ignores it. A clause mismatch (wrong arity or
-  type) becomes a clean fault.
+  Invoke builtin `name` (bare or `ns/name`) with evaluated `args`. `apply` is the
+  evaluator's closure-applier — `(closure, argvals) -> value` — used by the
+  higher-order collection ops; everything else ignores it. A clause mismatch
+  (wrong arity or type) becomes a clean fault.
   """
   def invoke(name, args, apply) do
-    Map.fetch!(@table, name).call(name, args, apply)
+    {mod, bare} = Map.fetch!(@table, name)
+    mod.call(bare, args, apply)
   rescue
     FunctionClauseError -> raise Error, "builtin `#{name}` got bad args: #{Show.form(args)}"
   end

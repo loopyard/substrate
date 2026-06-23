@@ -185,7 +185,9 @@ defmodule Substrate.Agent do
                                                  starts-with? ends-with?
       json      parse-json (-> string-keyed map) to-json    truth: all but false/nil
 
-    Capabilities are namespaced `ns/name` (e.g. fs/read); builtins are bare.
+    Capabilities are namespaced `ns/name` (e.g. fs/read). Builtins are bare,
+    but also reachable namespaced (coll/reduce, str/split, math/mod) — handy if
+    you define your own `reduce`: the bare name is yours, coll/reduce is the builtin.
     Build a result map key with a string, read it with (get m "key"); keyword
     accessors like (:body r) read dispositions and known keys.
 

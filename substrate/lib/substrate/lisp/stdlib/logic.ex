@@ -5,6 +5,7 @@ defmodule Substrate.Lisp.Stdlib.Logic do
   """
   alias Substrate.Lisp.Stdlib
 
+  def namespace, do: "logic"
   def names, do: ~w(= not < > <= >=)
 
   def call("=", [a | rest], _ap), do: Enum.all?(rest, &(&1 == a))

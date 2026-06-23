@@ -2,6 +2,7 @@ defmodule Substrate.Lisp.Stdlib.Math do
   @moduledoc "Stdlib group: arithmetic. Pure, zero-authority — like every builtin."
   alias Substrate.Lisp.Error
 
+  def namespace, do: "math"
   def names, do: ~w(+ - * / quot rem mod inc dec abs min max)
 
   def call("+", args, _a), do: Enum.sum(args)
