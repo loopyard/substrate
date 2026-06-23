@@ -138,10 +138,14 @@ defmodule Substrate.Lisp.Eval do
   # --- compound forms ---
   defp do_eval({:list, [{:sym, name} | args]} = form, env, s) do
     cond do
+      # precedence: syntax, then the (fixed) authority surface, then lexical
+      # bindings, then the stdlib. Env before builtins means a user `defn` can
+      # shadow a builtin — normal lexical scoping — while capabilities, being
+      # the authority surface, are never shadowable by a local binding.
       name in @specials -> special(name, args, env, s)
       Server.known?(s, name) -> {capability_call(name, args, env, s), env}
-      Stdlib.builtin?(name) -> {Stdlib.invoke(name, eval_args(args, env, s), &apply_fn(&1, &2, s)), env}
       Map.has_key?(env, name) -> {apply_fn(Map.fetch!(env, name), eval_args(args, env, s), s), env}
+      Stdlib.builtin?(name) -> {Stdlib.invoke(name, eval_args(args, env, s), &apply_fn(&1, &2, s)), env}
       true -> raise Error, "unbound symbol `#{name}`" <> bare_form_hint(form)
     end
   end

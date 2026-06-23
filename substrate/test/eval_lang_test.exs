@@ -65,6 +65,16 @@ defmodule Substrate.EvalLangTest do
     end
   end
 
+  describe "scoping precedence" do
+    test "a user defn shadows a builtin of the same name (lexical scoping)", %{s: s} do
+      assert 200 = Substrate.eval(s, "(do (defn inc [x] (* x 100)) (inc 2))")
+    end
+
+    test "a non-colliding name still reaches the builtin", %{s: s} do
+      assert [2, 4, 6] = Substrate.eval(s, "(do (defn double [x] (* x 2)) (map double (list 1 2 3)))")
+    end
+  end
+
   describe "the language is unbounded; the runtime is not" do
     test "a named infinite recursion is killed by the step budget, not a hang", %{s: s} do
       forms = Reader.read_all("(do (defn loop [n] (loop (inc n))) (loop 0))", atoms: :existing)
