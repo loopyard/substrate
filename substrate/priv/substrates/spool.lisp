@@ -9,9 +9,9 @@
 
   (capability spool/write
     "Write text to a file (relative to the jail root). Max 10 per second."
-    (params (path    string "file path relative to the jail root")
+    (parameters (path    string "file path relative to the jail root")
             (content string "text to write"))
-    (returns (record (bytes int) (path string)))
+    (returns (record (bytes integer) (path string)))
     (policy  (deny-if escapes-jail)
              (rate    "10/sec"))
     (example (spool/write :path "events/0001.txt" :content "hello"))
@@ -19,8 +19,8 @@
 
   (capability spool/read
     "Read a file back (not rate-limited)."
-    (params (path string "file path relative to the jail root"))
-    (returns (record (content string) (bytes int)))
+    (parameters (path string "file path relative to the jail root"))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if escapes-jail))
     (example (spool/read :path "events/0001.txt"))
     (bind    Substrate.FS.read/2)))

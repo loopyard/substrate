@@ -29,8 +29,8 @@
   (capability gmail/profile
     "Mailbox stats: the address and total message/thread counts. Works even on a
      restricted metadata-scope token."
-    (params)
-    (returns (record (email string) (messages_total int) (threads_total int)))
+    (parameters)
+    (returns (record (email string) (messages_total integer) (threads_total integer)))
     (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (example (gmail/profile))
     (bind    Substrate.Gmail.profile/2))
@@ -38,8 +38,8 @@
   (capability gmail/recent
     "List the most recent message ids (no search query needed). `estimate` is
      Gmail's whole-mailbox size."
-    (params  (count int "how many recent ids to return (1..500)"))
-    (returns (record (ids (list string)) (count int) (estimate int)))
+    (parameters  (count integer "how many recent ids to return (1..500)"))
+    (returns (record (ids (list string)) (count integer) (estimate integer)))
     (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "30/min"))
     (example (gmail/recent :count 25))
@@ -48,7 +48,7 @@
   (capability gmail/headers
     "Read a message's headers (From/To/Subject/Date) and snippet — the read that
      works under a metadata-scope token."
-    (params  (id string "the message id from gmail/recent or gmail/search"))
+    (parameters  (id string "the message id from gmail/recent or gmail/search"))
     (returns (record (id string) (from string) (to string) (subject string)
                      (date string) (snippet string)))
     (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
@@ -58,8 +58,8 @@
 
   (capability gmail/search
     "Search the mailbox with Gmail query syntax. Returns matching message ids."
-    (params  (query string "Gmail search, e.g. \"is:unread from:jane@acme.com\""))
-    (returns (record (ids (list string)) (count int) (query string)))
+    (parameters  (query string "Gmail search, e.g. \"is:unread from:jane@acme.com\""))
+    (returns (record (ids (list string)) (count integer) (query string)))
     (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
     (policy  (rate "30/min"))
     (example (gmail/search :query "is:unread newer_than:7d"))
@@ -67,7 +67,7 @@
 
   (capability gmail/read
     "Read one message: its From/To/Subject/Date headers, snippet, and body text."
-    (params  (id string "the message id from gmail/search"))
+    (parameters  (id string "the message id from gmail/search"))
     (returns (record (id string) (from string) (subject string)
                      (date string) (snippet string) (body string)))
     (auth    (header "Authorization" (string "Bearer " (secret :gmail_token))))
@@ -78,7 +78,7 @@
   (capability gmail/send
     "Send an email. ALWAYS queued for human review first — the operator sees the
      to/subject/body and approves before anything leaves the building."
-    (params  (to      string "recipient email address")
+    (parameters  (to      string "recipient email address")
              (subject string "subject line")
              (body    string "plain-text message body"))
     (returns (record (id string) (thread_id string) (to string) (subject string)))

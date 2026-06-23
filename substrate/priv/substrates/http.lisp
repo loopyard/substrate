@@ -20,8 +20,8 @@
   (capability http/get
     "Fetch a URL with GET. Only allowlisted hosts are reachable; everything else
      is denied."
-    (params  (url string "absolute http(s) URL, e.g. \"https://example.com/x\""))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (parameters  (url string "absolute http(s) URL, e.g. \"https://example.com/x\""))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (policy  (deny-if host-denied)
              (rate    "10/min"))
     (example (http/get :url "https://example.com"))
@@ -30,9 +30,9 @@
   (capability http/post
     "POST to a URL. :body is a map (sent as JSON) or a string. Returns the status
      and the response (with a decoded :json when the reply is JSON)."
-    (params  (url  string "absolute http(s) URL on an allowlisted host")
+    (parameters  (url  string "absolute http(s) URL on an allowlisted host")
              (body any    "request body — a map (sent as JSON) or a string"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (policy  (deny-if host-denied)
              (rate    "10/min"))
     (example (http/post :url "https://example.com/items" :body {"name" "widget"}))
@@ -40,9 +40,9 @@
 
   (capability http/put
     "PUT to a URL (replace). :body is a map (sent as JSON) or a string."
-    (params  (url  string "absolute http(s) URL on an allowlisted host")
+    (parameters  (url  string "absolute http(s) URL on an allowlisted host")
              (body any    "request body — a map (sent as JSON) or a string"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (policy  (deny-if host-denied)
              (rate    "10/min"))
     (example (http/put :url "https://example.com/items/1" :body {"name" "gadget"}))
@@ -50,9 +50,9 @@
 
   (capability http/patch
     "PATCH a URL (partial update). :body is a map (sent as JSON) or a string."
-    (params  (url  string "absolute http(s) URL on an allowlisted host")
+    (parameters  (url  string "absolute http(s) URL on an allowlisted host")
              (body any    "request body — a map (sent as JSON) or a string"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (policy  (deny-if host-denied)
              (rate    "10/min"))
     (example (http/patch :url "https://example.com/items/1" :body {"name" "gadget"}))
@@ -60,8 +60,8 @@
 
   (capability http/delete
     "DELETE a URL. Carries no body."
-    (params  (url string "absolute http(s) URL on an allowlisted host"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (parameters  (url string "absolute http(s) URL on an allowlisted host"))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (policy  (deny-if host-denied)
              (rate    "10/min"))
     (example (http/delete :url "https://example.com/items/1"))

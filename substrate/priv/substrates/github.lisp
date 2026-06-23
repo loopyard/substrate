@@ -26,8 +26,8 @@
   (capability gh/get
     "GET a GitHub URL, authenticated automatically. Only allowlisted GitHub hosts
      are reachable; volume is rate-clamped."
-    (params  (url string "absolute https URL on an allowlisted GitHub host"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (parameters  (url string "absolute https URL on an allowlisted GitHub host"))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     ;; auth is trusted-tier: stripped at the wall like `bind`, resolved per call.
     (auth    (header "Authorization" (string "Bearer " (secret :gh_token)))
              (header "Accept"        "application/vnd.github+json"))
@@ -39,9 +39,9 @@
   (capability gh/post
     "POST to a GitHub URL — create an issue, add a comment, etc. :body is a map,
      sent as JSON. Returns the created resource as :json."
-    (params  (url  string "absolute https URL on an allowlisted GitHub host")
+    (parameters  (url  string "absolute https URL on an allowlisted GitHub host")
              (body any    "JSON body, e.g. {\"title\" \"Bug\" \"body\" \"...\"}"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (auth    (header "Authorization" (string "Bearer " (secret :gh_token)))
              (header "Accept"        "application/vnd.github+json"))
     (policy  (deny-if host-denied)
@@ -53,9 +53,9 @@
   (capability gh/patch
     "PATCH a GitHub URL — update an issue (e.g. close it), edit a comment. :body
      is a map, sent as JSON."
-    (params  (url  string "absolute https URL on an allowlisted GitHub host")
+    (parameters  (url  string "absolute https URL on an allowlisted GitHub host")
              (body any    "JSON body, e.g. {\"state\" \"closed\"}"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (auth    (header "Authorization" (string "Bearer " (secret :gh_token)))
              (header "Accept"        "application/vnd.github+json"))
     (policy  (deny-if host-denied)
@@ -66,8 +66,8 @@
 
   (capability gh/delete
     "DELETE a GitHub URL — remove a comment, etc. Carries no body."
-    (params  (url string "absolute https URL on an allowlisted GitHub host"))
-    (returns (record (status int) (body string) (bytes int) (json any)))
+    (parameters  (url string "absolute https URL on an allowlisted GitHub host"))
+    (returns (record (status integer) (body string) (bytes integer) (json any)))
     (auth    (header "Authorization" (string "Bearer " (secret :gh_token)))
              (header "Accept"        "application/vnd.github+json"))
     (policy  (deny-if host-denied)

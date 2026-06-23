@@ -19,7 +19,7 @@ defmodule Substrate.NamespacingTest do
       assert 10 = eval(s, "(reduce (fn [a x] (+ a x)) 0 (range 5))")
       assert 10 = eval(s, "(collection/reduce (fn [a x] (+ a x)) 0 (collection/range 5))")
       assert ["a", "b"] = eval(s, ~s|(string/split "a,b" ",")|)
-      assert 1 = eval(s, "(math/mod 7 3)")
+      assert 1 = eval(s, "(math/modulo 7 3)")
     end
 
     test "a user defn shadows the bare name but the builtin survives under its ns" do
@@ -56,7 +56,7 @@ defmodule Substrate.NamespacingTest do
 
     test "a substrate may not claim a stdlib namespace" do
       s = fresh()
-      sub = "(substrate collection \"x\" (capability collection/x \"y\" (params (a string)) (returns (record)) (bind Substrate.FS.read/2)))"
+      sub = "(substrate collection \"x\" (capability collection/x \"y\" (parameters (a string)) (returns (record)) (bind Substrate.FS.read/2)))"
             |> Substrate.read_substrate()
       assert {:error, msg} = Substrate.mount(s, sub, [])
       assert msg =~ "shadows a stdlib namespace"

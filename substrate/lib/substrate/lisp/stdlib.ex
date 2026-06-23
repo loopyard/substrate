@@ -6,12 +6,12 @@ defmodule Substrate.Lisp.Stdlib do
 
   The functions are split into groups that each own a slice of the surface:
 
-    * `Math`  — `+ - * / quot rem mod inc dec abs min max`
+    * `Math`  — `+ - * / quotient remainder modulo increment decrement absolute minimum maximum`
     * `Logic` — `= not < > <= >=`
-    * `Collection`  — sequences: `count first rest nth reverse sort cons conj concat
+    * `Collection`  — sequences: `count first rest element-at reverse sort prepend append concatenate
       range contains? map filter reduce list`
-    * `String`  — `string join split upcase downcase starts-with? ends-with?`
-    * `Maps`  — `get assoc keys vals`
+    * `String`  — `string join split uppercase lowercase starts-with? ends-with?`
+    * `Maps`  — `get associate keys values`
     * `Json`  — `parse-json to-json`
 
   This module is the registry the evaluator talks to: it builds the

@@ -9,8 +9,8 @@
 
   (capability authed/get
     "GET a URL with a bearer token attached on the trusted side."
-    (params  (url string "absolute URL"))
-    (returns (record (status int) (body string) (bytes int)))
+    (parameters  (url string "absolute URL"))
+    (returns (record (status integer) (body string) (bytes integer)))
     (auth    (header "Authorization" (string "Bearer " (secret :token))))
     (policy  (deny-if host-denied)
              (rate    "60/min"))

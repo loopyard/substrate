@@ -56,7 +56,7 @@ defmodule HardeningTest do
     end
 
     test "a recursion/heap bomb is killed by the per-process heap cap", %{s: s} do
-      prog = "(do (defn g [f n] (if (= n 0) 0 (inc (f f (dec n))))) (g g 3000000))"
+      prog = "(do (defn g [f n] (if (= n 0) 0 (increment (f f (decrement n))))) (g g 3000000))"
       forms = Reader.read_all(prog, atoms: :existing)
       assert {:fault, msg} = Eval.run_guarded(forms, s, max_heap: 200_000, max_steps: nil, timeout: 10_000)
       assert msg =~ "heap limit"

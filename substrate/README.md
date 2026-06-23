@@ -109,8 +109,8 @@ shape, policy, example, and native binding are a single s-expression
 ```lisp
 (capability fs/write
   "Write text to a file, creating parent dirs as needed."
-  (params (path string "relative to the jail root") (content string))
-  (returns (record (bytes int) (path string)))
+  (parameters (path string "relative to the jail root") (content string))
+  (returns (record (bytes integer) (path string)))
   (policy  (deny-if    escapes-jail)
            (rate       "5/min")
            (confirm-if outside-safe))
@@ -204,8 +204,8 @@ running substrate:
   (resource :http_allow ["api.github.com"])
   (secret   :gh_token   (env "GITHUB_TOKEN"))     ; resolved at load, vaulted
   (capability gh/get
-    (params (url string "absolute https URL"))
-    (returns (record (status int) (body string) (bytes int)))
+    (parameters (url string "absolute https URL"))
+    (returns (record (status integer) (body string) (bytes integer)))
     (auth   (header "Authorization" (string "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
     (policy (deny-if host-denied) (rate "30/min"))
     (bind   Substrate.HTTP.get/2)))

@@ -14,7 +14,7 @@
   (capability io/print
     "Print one line to the operator's stdout, tagged as agent output. Returns the
      text that was written."
-    (params  (text string "the line to print"))
+    (parameters  (text string "the line to print"))
     (returns (record (printed string)))
     (example (io/print :text "saved /home/agent/notes.txt"))
     (bind    Substrate.Stdio.write/2)))

@@ -51,7 +51,7 @@ defmodule Substrate.Server do
   Mounting refuses to silently clobber: if a capability name already exists it
   returns `{:error, reason}` rather than overwriting. Pass `as: "newns"` to
   rename the substrate's namespace and resolve the clash. A substrate may not
-  claim a stdlib namespace (`math`, `coll`, …) without `as:`.
+  claim a stdlib namespace (`math`, `collection`, …) without `as:`.
   """
   def mount(server, substrate_ast, opts) do
     GenServer.call(server, {:mount, substrate_ast, opts})

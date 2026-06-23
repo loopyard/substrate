@@ -17,28 +17,28 @@ defmodule Substrate.EvalLangTest do
 
   describe "named recursion (defn sees its own name — letrec)" do
     test "factorial", %{s: s} do
-      assert 120 = Substrate.eval(s, "(do (defn f [n] (if (<= n 1) 1 (* n (f (dec n))))) (f 5))")
+      assert 120 = Substrate.eval(s, "(do (defn f [n] (if (<= n 1) 1 (* n (f (decrement n))))) (f 5))")
     end
 
     test "accumulator-style recursion", %{s: s} do
-      prog = "(do (defn sum [n acc] (if (= n 0) acc (sum (dec n) (+ acc n)))) (sum 100 0))"
+      prog = "(do (defn sum [n acc] (if (= n 0) acc (sum (decrement n) (+ acc n)))) (sum 100 0))"
       assert 5050 = Substrate.eval(s, prog)
     end
 
     test "recursion computing a power", %{s: s} do
-      prog = "(do (defn pow [b e] (if (= e 0) 1 (* b (pow b (dec e))))) (pow 2 10))"
+      prog = "(do (defn pow [b e] (if (= e 0) 1 (* b (pow b (decrement e))))) (pow 2 10))"
       assert 1024 = Substrate.eval(s, prog)
     end
 
     test "deep-but-finite recursion completes under the default budget", %{s: s} do
-      prog = "(do (defn down [n] (if (= n 0) :done (down (dec n)))) (down 5000))"
+      prog = "(do (defn down [n] (if (= n 0) :done (down (decrement n)))) (down 5000))"
       assert :done = Substrate.eval(s, prog)
     end
   end
 
   describe "self-application still works (fixpoint via argument-passing)" do
     test "U-combinator factorial", %{s: s} do
-      prog = "(do (defn f [self n] (if (<= n 1) 1 (* n (self self (dec n))))) (f f 5))"
+      prog = "(do (defn f [self n] (if (<= n 1) 1 (* n (self self (decrement n))))) (f f 5))"
       assert 120 = Substrate.eval(s, prog)
     end
   end
@@ -67,7 +67,7 @@ defmodule Substrate.EvalLangTest do
 
   describe "scoping precedence" do
     test "a user defn shadows a builtin of the same name (lexical scoping)", %{s: s} do
-      assert 200 = Substrate.eval(s, "(do (defn inc [x] (* x 100)) (inc 2))")
+      assert 200 = Substrate.eval(s, "(do (defn increment [x] (* x 100)) (increment 2))")
     end
 
     test "a non-colliding name still reaches the builtin", %{s: s} do
@@ -77,7 +77,7 @@ defmodule Substrate.EvalLangTest do
 
   describe "the language is unbounded; the runtime is not" do
     test "a named infinite recursion is killed by the step budget, not a hang", %{s: s} do
-      forms = Reader.read_all("(do (defn loop [n] (loop (inc n))) (loop 0))", atoms: :existing)
+      forms = Reader.read_all("(do (defn loop [n] (loop (increment n))) (loop 0))", atoms: :existing)
       assert {:fault, msg} = Eval.run_guarded(forms, s, max_steps: 50_000, timeout: 3_000)
       assert msg =~ "step budget"
     end
@@ -85,7 +85,7 @@ defmodule Substrate.EvalLangTest do
 
   describe "mutual recursion (letrec*: defns in a sequence see each other)" do
     test "forward reference across two defns resolves both directions", %{s: s} do
-      prog = "(do (defn a [n] (if (= n 0) :a (b (dec n)))) (defn b [n] (if (= n 0) :b (a (dec n)))) (a 3))"
+      prog = "(do (defn a [n] (if (= n 0) :a (b (decrement n)))) (defn b [n] (if (= n 0) :b (a (decrement n)))) (a 3))"
       assert :b = Substrate.eval(s, prog)
     end
 

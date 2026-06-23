@@ -11,7 +11,7 @@
 
   (capability fs/list
     "List the entries of a directory (relative to the jail root)."
-    (params (path string "directory path relative to the jail root, e.g. \"notes\""))
+    (parameters (path string "directory path relative to the jail root, e.g. \"notes\""))
     (returns (record (entries (list string))))
     (policy  (deny-if escapes-jail))
     (example (fs/list :path "notes"))
@@ -19,8 +19,8 @@
 
   (capability fs/read
     "Read a file's contents. Returns the text and its byte length."
-    (params (path string "file path relative to the jail root"))
-    (returns (record (content string) (bytes int)))
+    (parameters (path string "file path relative to the jail root"))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if escapes-jail))
     (example (fs/read :path "notes/todo.txt"))
     (bind    Substrate.FS.read/2))
@@ -28,9 +28,9 @@
   (capability fs/write
     "Write text to a file, creating parent directories as needed. Writes outside
      the safe area need human approval; volume is rate-clamped."
-    (params (path    string "file path relative to the jail root")
+    (parameters (path    string "file path relative to the jail root")
             (content string "text to write"))
-    (returns (record (bytes int) (path string)))
+    (returns (record (bytes integer) (path string)))
     (policy  (deny-if    escapes-jail)
              (rate       "5/min")
              (confirm-if outside-safe))
@@ -39,7 +39,7 @@
 
   (capability fs/delete
     "Delete a file. Deletions outside the safe area need human approval."
-    (params (path string "file path relative to the jail root"))
+    (parameters (path string "file path relative to the jail root"))
     (returns (record (deleted string)))
     (policy  (deny-if    escapes-jail)
              (confirm-if outside-safe))

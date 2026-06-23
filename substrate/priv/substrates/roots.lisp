@@ -23,8 +23,8 @@
 
   (capability fs/read
     "Read a file by absolute path. DENIED unless the path sits inside an allowed root."
-    (params  (path string "absolute file path, e.g. \"/home/agent/notes.txt\""))
-    (returns (record (content string) (bytes int)))
+    (parameters  (path string "absolute file path, e.g. \"/home/agent/notes.txt\""))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if outside-roots))
     (example (fs/read :path "/home/agent/notes.txt"))
     (bind    Substrate.FS.read_at/2))
@@ -32,9 +32,9 @@
   (capability fs/write
     "Write text to a file by absolute path. DENIED unless the path sits inside an
      allowed root; parent dirs are created as needed."
-    (params  (path    string "absolute file path, e.g. \"/home/agent/notes.txt\"")
+    (parameters  (path    string "absolute file path, e.g. \"/home/agent/notes.txt\"")
              (content string "text to write"))
-    (returns (record (bytes int) (path string)))
+    (returns (record (bytes integer) (path string)))
     (policy  (deny-if outside-roots))
     (example (fs/write :path "/home/agent/notes.txt" :content "buy milk"))
     (bind    Substrate.FS.write_at/2)))

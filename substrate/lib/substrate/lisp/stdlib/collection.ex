@@ -10,7 +10,7 @@ defmodule Substrate.Lisp.Stdlib.Collection do
   def namespace, do: "collection"
 
   def names,
-    do: ~w(count first rest nth empty? reverse sort cons conj concat range contains? map filter reduce list)
+    do: ~w(count first rest element-at empty? reverse sort prepend append concatenate range contains? map filter reduce list)
 
   def call("list", args, _ap), do: args
 
@@ -22,14 +22,14 @@ defmodule Substrate.Lisp.Stdlib.Collection do
   def call("first", [[]], _ap), do: nil
   def call("rest", [[_ | t]], _ap), do: t
   def call("rest", [[]], _ap), do: []
-  def call("nth", [coll, i], _ap) when is_list(coll), do: Enum.at(coll, i)
+  def call("element-at", [coll, i], _ap) when is_list(coll), do: Enum.at(coll, i)
   def call("empty?", [c], _ap) when is_list(c), do: c == []
 
   def call("reverse", [xs], _ap) when is_list(xs), do: Enum.reverse(xs)
   def call("sort", [xs], _ap) when is_list(xs), do: Enum.sort(xs)
-  def call("cons", [x, xs], _ap) when is_list(xs), do: [x | xs]
-  def call("conj", [xs, x], _ap) when is_list(xs), do: xs ++ [x]
-  def call("concat", [a, b], _ap) when is_list(a) and is_list(b), do: a ++ b
+  def call("prepend", [x, xs], _ap) when is_list(xs), do: [x | xs]
+  def call("append", [xs, x], _ap) when is_list(xs), do: xs ++ [x]
+  def call("concatenate", [a, b], _ap) when is_list(a) and is_list(b), do: a ++ b
 
   def call("range", [n], _ap) when is_integer(n),
     do: if(n > 0, do: Enum.to_list(0..(n - 1)), else: [])

@@ -61,7 +61,7 @@ defmodule Substrate.Capability do
     Enum.reduce(clauses, base, &apply_clause/2)
   end
 
-  defp apply_clause({:list, [{:sym, "params"} | defs]}, cap),
+  defp apply_clause({:list, [{:sym, "parameters"} | defs]}, cap),
     do: %{cap | params: Enum.map(defs, &compile_param/1)}
 
   defp apply_clause({:list, [{:sym, "returns"}, shape]}, cap) do
@@ -171,7 +171,7 @@ defmodule Substrate.Capability do
       [
         "(capability #{c.name}",
         "  #{inspect(c.doc)}",
-        "  (params" <> render_params(c.params) <> ")",
+        "  (parameters" <> render_params(c.params) <> ")",
         "  (returns #{print(c.returns)})"
       ] ++ render_policy(c.policy, reveal)
 

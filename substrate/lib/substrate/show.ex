@@ -16,7 +16,7 @@ defmodule Substrate.Show do
 
   def form({:closure, _, _, _, _}), do: "#<fn>"
 
-  @doc "Human display: raw for strings, canonical form otherwise. Used by log/str."
+  @doc "Human display: raw for strings, canonical form otherwise. Used by log/string."
   def display(v) when is_binary(v), do: v
   def display(v), do: form(v)
 end

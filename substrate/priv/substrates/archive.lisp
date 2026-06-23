@@ -17,7 +17,7 @@
 
   (capability archive/list
     "List entries under the archive root (path is relative to it)."
-    (params (path string "directory path relative to the archive root, e.g. \".\""))
+    (parameters (path string "directory path relative to the archive root, e.g. \".\""))
     (returns (record (entries (list string))))
     (policy  (deny-if escapes-jail)
              (rate    "3/min"))
@@ -26,8 +26,8 @@
 
   (capability archive/read
     "Read a file from the archive. Returns its text and byte length."
-    (params (path string "file path relative to the archive root"))
-    (returns (record (content string) (bytes int)))
+    (parameters (path string "file path relative to the archive root"))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if escapes-jail)
              (rate    "3/min"))
     (example (archive/read :path "2026-q2.txt"))

@@ -18,15 +18,15 @@ defmodule Substrate.StdlibTest do
       assert 10 = val("(+ 1 2 3 4)")
       assert 24 = val("(* 1 2 3 4)")
       assert 3.5 = val("(/ 7 2)")
-      assert 3 = val("(quot 7 2)")
-      assert 1 = val("(mod 7 3)")
-      assert 4 = val("(abs -4)")
-      assert 9 = val("(max 1 9 3)")
+      assert 3 = val("(quotient 7 2)")
+      assert 1 = val("(modulo 7 3)")
+      assert 4 = val("(absolute -4)")
+      assert 9 = val("(maximum 1 9 3)")
     end
 
     test "division by zero is a clean fault" do
       assert {:fault, "division by zero"} = val("(/ 1 0)")
-      assert {:fault, "division by zero"} = val("(mod 1 0)")
+      assert {:fault, "division by zero"} = val("(modulo 1 0)")
     end
   end
 
@@ -44,12 +44,12 @@ defmodule Substrate.StdlibTest do
       assert [0, 1, 2] = val("(range 3)")
       assert [3, 2, 1] = val("(reverse (list 1 2 3))")
       assert [1, 2, 3] = val("(sort (list 3 1 2))")
-      assert [0, 1, 2] = val("(cons 0 (list 1 2))")
-      assert [1, 2, 0] = val("(conj (list 1 2) 0)")
-      assert [1, 2, 3, 4] = val("(concat (list 1 2) (list 3 4))")
-      assert 2 = val("(nth (list 1 2 3) 1)")
+      assert [0, 1, 2] = val("(prepend 0 (list 1 2))")
+      assert [1, 2, 0] = val("(append (list 1 2) 0)")
+      assert [1, 2, 3, 4] = val("(concatenate (list 1 2) (list 3 4))")
+      assert 2 = val("(element-at (list 1 2 3) 1)")
       assert [1, 4, 9] = val("(map (fn [x] (* x x)) (list 1 2 3))")
-      assert [2, 4] = val("(filter (fn [x] (= 0 (mod x 2))) (list 1 2 3 4))")
+      assert [2, 4] = val("(filter (fn [x] (= 0 (modulo x 2))) (list 1 2 3 4))")
       assert 5050 = val("(reduce (fn [a x] (+ a x)) 0 (range 101))")
       assert true == val("(contains? (list 1 2 3) 2)")
     end
@@ -64,15 +64,15 @@ defmodule Substrate.StdlibTest do
     test "concatenation, split, case, prefixes" do
       assert "a1" = val(~s|(string "a" 1)|)
       assert ["a", "b", "c"] = val(~s|(split "a,b,c" ",")|)
-      assert "AB" = val(~s|(upcase "ab")|)
+      assert "AB" = val(~s|(uppercase "ab")|)
       assert true == val(~s|(starts-with? "hello" "he")|)
       assert true == val(~s|(ends-with? "hello" "lo")|)
     end
   end
 
   describe "Maps" do
-    test "assoc / get / keys / vals / contains?" do
-      assert %{"a" => 1, "b" => 2} = val(~s|(assoc {"a" 1} "b" 2)|)
+    test "associate / get / keys / values / contains?" do
+      assert %{"a" => 1, "b" => 2} = val(~s|(associate {"a" 1} "b" 2)|)
       assert 1 = val(~s|(get {"a" 1} "a")|)
       assert true == val(~s|(contains? {"a" 1} "a")|)
     end
@@ -107,13 +107,13 @@ defmodule Substrate.StdlibTest do
 
     test "the core stdlib names are all present" do
       have = MapSet.new(Stdlib.names())
-      for n <- ~w(+ / mod = not map filter reduce range cons count string split get assoc parse-json) do
+      for n <- ~w(+ / modulo = not map filter reduce range prepend count string split get associate parse-json) do
         assert MapSet.member?(have, n), "missing builtin #{n}"
       end
     end
 
     test "a bad-arity builtin call is a clean fault, not a crash" do
-      assert {:fault, msg} = val("(inc)")
+      assert {:fault, msg} = val("(increment)")
       assert msg =~ "got bad args"
     end
   end
