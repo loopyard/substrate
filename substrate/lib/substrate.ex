@@ -62,11 +62,9 @@ defmodule Substrate do
   call) is caught and returned as `{:fault, message}` — it never escapes L2.
   """
   def eval(server, src) do
-    forms = Reader.read_all(src)
-    Eval.run(forms, server)
+    forms = Reader.read_all(src, atoms: :existing)
+    Eval.run_guarded(forms, server)
   rescue
     e in Error -> {:fault, e.message}
-  catch
-    :substrate_break -> nil
   end
 end

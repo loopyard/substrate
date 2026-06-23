@@ -22,29 +22,113 @@ defmodule Substrate.Lisp.Eval do
 
   @specials ~w(do let for if cond case fn defn def and or describe await break quote grant as)
 
+  # Resource bounds for untrusted evaluation (see `run_guarded/3`). Defaults are
+  # generous for real programs and lethal to bombs; override per-call via opts.
+  @max_steps 1_000_000
+  @max_heap_words 5_000_000
+  @timeout_ms 5_000
+
   @doc "Evaluate a program (one or more top-level forms), returning the last value."
   def run(forms, server) when is_list(forms) do
     {val, _env} = eval_seq(forms, %{}, server)
     val
   end
 
+  @doc """
+  Evaluate untrusted forms under hard bounds: a step budget, a per-process heap
+  cap (heap + stack), and a wall-clock timeout. Runs in a throwaway monitored
+  process so a runaway program (infinite loop, allocation/recursion bomb) is
+  killed without touching the caller or the node. Returns the program value, or
+  `{:fault, reason}`. `opts`: `:max_steps` (int | nil), `:max_heap` (words),
+  `:timeout` (ms).
+  """
+  def run_guarded(forms, server, opts \\ []) do
+    steps   = Keyword.get(opts, :max_steps, @max_steps)
+    heap    = Keyword.get(opts, :max_heap, @max_heap_words)
+    timeout = Keyword.get(opts, :timeout, @timeout_ms)
+    parent  = self()
+    ref     = make_ref()
+
+    {pid, mon} =
+      :erlang.spawn_opt(
+        fn ->
+          if is_integer(steps), do: Process.put(:substrate_steps_left, steps)
+
+          outcome =
+            try do
+              {:ok, run(forms, server)}
+            rescue
+              e in Error -> {:fault, e.message}
+            catch
+              :substrate_break -> {:ok, nil}
+              :substrate_step_limit -> {:fault, "step budget exceeded (#{steps} steps)"}
+            end
+
+          send(parent, {ref, outcome})
+        end,
+        [:monitor, max_heap_size: %{size: heap, kill: true, error_logger: false}]
+      )
+
+    receive do
+      {^ref, {:ok, val}} ->
+        Process.demonitor(mon, [:flush])
+        val
+
+      {^ref, {:fault, msg}} ->
+        Process.demonitor(mon, [:flush])
+        {:fault, msg}
+
+      {:DOWN, ^mon, :process, ^pid, :killed} ->
+        {:fault, "heap limit exceeded (#{heap} words)"}
+
+      {:DOWN, ^mon, :process, ^pid, reason} ->
+        {:fault, "evaluation crashed: #{inspect(reason)}"}
+    after
+      timeout ->
+        Process.exit(pid, :kill)
+        flush_down(mon)
+        {:fault, "evaluation timed out (#{timeout} ms)"}
+    end
+  end
+
+  defp flush_down(mon) do
+    receive do
+      {:DOWN, ^mon, :process, _, _} -> :ok
+    after
+      100 -> :ok
+    end
+  end
+
+  # Every evaluated node ticks the step budget when one is installed for this
+  # process; exhausting it aborts the whole program. Outside a guarded run no
+  # budget is set and this is a no-op (keeps direct `run/2` callers unbounded).
+  def eval(ast, env, s) do
+    case Process.get(:substrate_steps_left) do
+      nil -> :ok
+      n when n <= 0 -> throw(:substrate_step_limit)
+      n -> Process.put(:substrate_steps_left, n - 1)
+    end
+
+    do_eval(ast, env, s)
+  end
+
   # --- literals ---
-  def eval({:int, n}, env, _s), do: {n, env}
-  def eval({:str, s}, env, _s), do: {s, env}
-  def eval({:bool, b}, env, _s), do: {b, env}
-  def eval(nil, env, _s), do: {nil, env}
-  def eval({:kw, a}, env, _s), do: {a, env}
+  defp do_eval({:int, n}, env, _s), do: {n, env}
+  defp do_eval({:str, s}, env, _s), do: {s, env}
+  defp do_eval({:bool, b}, env, _s), do: {b, env}
+  defp do_eval(nil, env, _s), do: {nil, env}
+  defp do_eval({:kw, a}, env, _s), do: {a, env}
 
-  def eval({:vec, items}, env, s), do: {eval_args(items, env, s), env}
+  defp do_eval({:vec, items}, env, s), do: {eval_args(items, env, s), env}
 
-  def eval({:map, items}, env, s) do
+  defp do_eval({:map, items}, env, s) do
     vals = eval_args(items, env, s)
     map = vals |> Enum.chunk_every(2) |> Map.new(fn [k, v] -> {k, v} end)
     {map, env}
   end
 
   # --- symbols: must be bound; a bare capability name has no value (the wall) ---
-  def eval({:sym, name}, env, _s) do
+  defp do_eval({:sym, name}, env, _s) do
     case Map.fetch(env, name) do
       {:ok, v} -> {v, env}
       :error -> raise Error, "unbound symbol `#{name}`"
@@ -52,7 +136,7 @@ defmodule Substrate.Lisp.Eval do
   end
 
   # --- compound forms ---
-  def eval({:list, [{:sym, name} | args]} = form, env, s) do
+  defp do_eval({:list, [{:sym, name} | args]} = form, env, s) do
     cond do
       name in @specials -> special(name, args, env, s)
       Server.known?(s, name) -> {capability_call(name, args, env, s), env}
@@ -63,7 +147,7 @@ defmodule Substrate.Lisp.Eval do
   end
 
   # keyword in head position is a map accessor: (:from m)
-  def eval({:list, [{:kw, key} | args]}, env, s) do
+  defp do_eval({:list, [{:kw, key} | args]}, env, s) do
     case eval_args(args, env, s) do
       [m] when is_map(m) -> {Map.get(m, key), env}
       _ -> raise Error, "keyword accessor `:#{key}` expects one map argument"
@@ -71,12 +155,12 @@ defmodule Substrate.Lisp.Eval do
   end
 
   # operator is itself an expression (e.g. an inline fn)
-  def eval({:list, [head | args]}, env, s) do
+  defp do_eval({:list, [head | args]}, env, s) do
     {callee, env} = eval(head, env, s)
     {apply_fn(callee, eval_args(args, env, s), s), env}
   end
 
-  def eval({:list, []}, env, _s), do: {nil, env}
+  defp do_eval({:list, []}, env, _s), do: {nil, env}
 
   # --- special forms ---
 
