@@ -214,11 +214,11 @@ defmodule Substrate.Lisp.Eval do
   end
 
   defp special("fn", [{:vec, params} | body], env, _s) do
-    {{:closure, param_names(params), body, env}, env}
+    {{:closure, param_names(params), body, env, nil}, env}
   end
 
   defp special("defn", [{:sym, name}, {:vec, params} | body], env, _s) do
-    closure = {:closure, param_names(params), body, env}
+    closure = {:closure, param_names(params), body, env, name}
     {closure, Map.put(env, name, closure)}
   end
 
@@ -338,12 +338,15 @@ defmodule Substrate.Lisp.Eval do
 
   defp param_names(params), do: Enum.map(params, fn {:sym, n} -> n end)
 
-  defp apply_fn({:closure, names, body, cenv}, argvals, s) do
+  defp apply_fn({:closure, names, body, cenv, self} = closure, argvals, s) do
     if length(names) != length(argvals) do
       raise Error, "arity mismatch: expected #{length(names)}, got #{length(argvals)}"
     end
 
-    inner = Enum.zip(names, argvals) |> Map.new() |> then(&Map.merge(cenv, &1))
+    # letrec: a `defn` closure sees its own name bound to itself, so named
+    # self-recursion resolves naturally; `fn` closures are anonymous (self nil).
+    base = if self, do: Map.put(cenv, self, closure), else: cenv
+    inner = Enum.zip(names, argvals) |> Map.new() |> then(&Map.merge(base, &1))
     {v, _} = eval_seq(body, inner, s)
     v
   end

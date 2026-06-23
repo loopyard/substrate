@@ -14,7 +14,7 @@ defmodule Substrate.Show do
     "{" <> Enum.map_join(v, " ", fn {k, val} -> ":#{k} #{form(val)}" end) <> "}"
   end
 
-  def form({:closure, _, _, _}), do: "#<fn>"
+  def form({:closure, _, _, _, _}), do: "#<fn>"
 
   @doc "Human display: raw for strings, canonical form otherwise. Used by log/str."
   def display(v) when is_binary(v), do: v
