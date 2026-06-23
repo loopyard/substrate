@@ -124,8 +124,21 @@ mix deps.get && mix compile
 
 A good first read is **`zoned_demo.exs`**: one `fs/write` capability that behaves
 four different ways depending on *where* you write — unlimited in one zone,
-rate-limited in another, human-approved in a third, read-only in the last. Or run
-`mix substrate.repl` to poke at a live capability surface yourself.
+rate-limited in another, human-approved in a third, read-only in the last.
+
+Three ways to drive a live substrate, each at a different seat:
+
+```bash
+mix substrate.console priv/substrates/roots.lisp   # BUILD it (trusted L2): mount live, revoke, \reveal rules, rule the queue
+mix substrate.repl    priv/substrates/roots.lisp   # OPERATE it as the agent (untrusted L3): you type substrate-Lisp
+ANTHROPIC_API_KEY=sk-ant-... \
+  mix substrate.agent priv/substrates/roots.lisp \
+    --goal "Leave a hello note for yourself."       # RUN an LLM at that same L3 seam, autonomously
+```
+
+The console and the repl are the wall seen from both sides; the agent puts a
+model where the human sits in the repl — reading the surface, emitting a
+program, reacting to each disposition — and never reaches past `eval`.
 
 ## Go deeper
 
