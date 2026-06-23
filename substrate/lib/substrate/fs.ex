@@ -54,6 +54,47 @@ defmodule Substrate.FS do
     end
   end
 
+  # --- absolute-path mode: allowlist of roots (the "/home yes, /root no" model) ---
+  #
+  # Here the agent names a REAL absolute path. There is no jail root to hide; the
+  # confinement is an allowlist of roots (`:fs_roots`) that the membrane checks
+  # before us and we re-check here in trusted code. The process may run as root —
+  # the OS would let it write anywhere — so this clamp is the only thing standing
+  # between the agent and the rest of the disk.
+
+  def read_at(ctx, %{path: path}) do
+    with {:ok, abs} <- within_roots(ctx, path) do
+      case File.read(abs) do
+        {:ok, content} -> {:ok, %{content: content, bytes: byte_size(content)}}
+        {:error, reason} -> {:ok, %{error: to_string(reason)}}
+      end
+    end
+  end
+
+  def write_at(ctx, %{path: path, content: content}) do
+    with {:ok, abs} <- within_roots(ctx, path) do
+      File.mkdir_p!(Path.dirname(abs))
+
+      case File.write(abs, content) do
+        :ok -> {:ok, %{bytes: byte_size(content), path: abs}}
+        {:error, reason} -> {:ok, %{error: to_string(reason)}}
+      end
+    end
+  end
+
+  defp within_roots(ctx, path) do
+    abs = Path.expand(path)
+    roots = Vault.fetch(ctx, :fs_roots, [])
+
+    if Enum.any?(roots, fn r -> contained?(abs, Path.expand(r)) end) do
+      {:ok, abs}
+    else
+      {:error, :outside_allowed_roots}
+    end
+  end
+
+  defp contained?(abs, dir), do: abs == dir or String.starts_with?(abs, dir <> "/")
+
   # The credential — the jail root — is named here and nowhere the agent can see.
   defp resolve(ctx, rel) do
     root = Vault.fetch!(ctx, :fs_root)

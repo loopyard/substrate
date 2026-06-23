@@ -69,6 +69,21 @@ defmodule Substrate.Predicates do
   def write_denied?(_ctx, _args), do: true
 
   @doc """
+  True when an ABSOLUTE path is NOT inside any allowlisted root (`:fs_roots`, a
+  list of absolute dirs). Default-deny: no list → everything denied. This is the
+  "/home yes, /root no" rule — the agent names a real absolute path and the
+  membrane refuses anything that isn't under an allowed root, even though the
+  process itself (running as root) could touch it.
+  """
+  def outside_roots?(ctx, %{path: path}) when is_binary(path) do
+    abs = Path.expand(path)
+    roots = Vault.fetch(ctx, :fs_roots, [])
+    not Enum.any?(roots, fn r -> contained?(abs, Path.expand(r)) end)
+  end
+
+  def outside_roots?(_ctx, _args), do: true
+
+  @doc """
   True when a URL's host is NOT on the allowlist (`:http_allow`, a list of exact
   hostnames). Deny-all by default: no allowlist, an unparseable URL, or a missing
   host → denied.
@@ -93,6 +108,7 @@ defmodule Substrate.Predicates do
   def lookup("escapes-jail"), do: &escapes_jail?/2
   def lookup("outside-safe"), do: &outside_safe?/2
   def lookup("write-denied"), do: &write_denied?/2
+  def lookup("outside-roots"), do: &outside_roots?/2
   def lookup("host-denied"), do: &host_denied?/2
   def lookup("in-bulk"), do: &in_zone?(&1, &2, "bulk")
   def lookup("in-data"), do: &in_zone?(&1, &2, "data")

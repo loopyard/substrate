@@ -58,6 +58,59 @@ defmodule Substrate.ExtensionsTest do
     end
   end
 
+  describe "roots.lisp — absolute paths, allowlist of roots (/home yes, /root no)" do
+    setup do
+      base = Path.join(System.tmp_dir!(), "roots_#{System.unique_integer([:positive])}")
+      allowed = Path.join(base, "home")
+      forbidden = Path.join(base, "root")
+      File.rm_rf!(base)
+      File.mkdir_p!(allowed)
+      File.mkdir_p!(forbidden)
+      on_exit(fn -> File.rm_rf!(base) end)
+
+      # the file declares ["/home"]; the integrator pins it to a tmp root for the test
+      {:ok, s} = Substrate.load("priv/manifests/roots.lisp", credentials: %{fs_roots: [allowed]})
+      %{s: s, allowed: allowed, forbidden: forbidden}
+    end
+
+    test "a write inside an allowed root goes through", %{s: s, allowed: allowed} do
+      assert {:disposition, :done, _} =
+               Substrate.eval(s, ~s|(fs/write :path "#{allowed}/notes.txt" :content "buy milk")|)
+
+      assert File.read!(Path.join(allowed, "notes.txt")) == "buy milk"
+    end
+
+    test "a write outside every allowed root is denied — nothing hits the disk",
+         %{s: s, forbidden: forbidden} do
+      target = Path.join(forbidden, "authorized_keys")
+
+      assert {:disposition, :denied, %{reason: "denied by policy"}} =
+               Substrate.eval(s, ~s|(fs/write :path "#{target}" :content "attacker")|)
+
+      refute File.exists?(target)
+    end
+
+    test "`..` cannot climb out of an allowed root", %{s: s, allowed: allowed, forbidden: forbidden} do
+      escape = "#{allowed}/../root/pwned.txt"
+
+      assert {:disposition, :denied, _} =
+               Substrate.eval(s, ~s|(fs/write :path "#{escape}" :content "via dotdot")|)
+
+      refute File.exists?(Path.join(forbidden, "pwned.txt"))
+    end
+
+    test "reads obey the same allowlist", %{s: s, allowed: allowed, forbidden: forbidden} do
+      File.write!(Path.join(allowed, "ok.txt"), "hi")
+      File.write!(Path.join(forbidden, "secret.txt"), "nope")
+
+      assert {:disposition, :done, %{content: "hi"}} =
+               Substrate.eval(s, ~s|(fs/read :path "#{Path.join(allowed, "ok.txt")}")|)
+
+      assert {:disposition, :denied, _} =
+               Substrate.eval(s, ~s|(fs/read :path "#{Path.join(forbidden, "secret.txt")}")|)
+    end
+  end
+
   describe "secrets + auth — authenticated on the trusted side, opaque to the agent" do
     setup do
       token = "s3cr3t-#{System.unique_integer([:positive])}"
