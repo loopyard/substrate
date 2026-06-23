@@ -53,6 +53,62 @@ defmodule Substrate.Gmail do
 
   def search(_ctx, _args), do: {:error, :bad_request}
 
+  @doc """
+  Mailbox profile — address + total message/thread counts. Works under the
+  restricted `gmail.metadata` scope (no `q`, no full bodies needed).
+  """
+  def profile(ctx, _args) do
+    with {:ok, p} when is_map(p) <- get_json(ctx, @base <> "/profile") do
+      {:ok,
+       %{
+         email: Map.get(p, "emailAddress"),
+         messages_total: Map.get(p, "messagesTotal"),
+         threads_total: Map.get(p, "threadsTotal")
+       }}
+    end
+  end
+
+  @doc """
+  List the most recent message ids (no search query — metadata-scope safe).
+  `count` caps how many ids come back; `estimate` is Gmail's whole-mailbox size.
+  """
+  def recent(ctx, %{count: n}) when is_integer(n) do
+    url = @base <> "/messages?maxResults=" <> Integer.to_string(max(1, min(n, 500)))
+
+    case get_json(ctx, url) do
+      {:ok, %{"messages" => msgs} = resp} ->
+        ids = msgs |> List.wrap() |> Enum.map(&Map.get(&1, "id")) |> Enum.reject(&is_nil/1)
+        {:ok, %{ids: ids, count: length(ids), estimate: Map.get(resp, "resultSizeEstimate")}}
+
+      {:ok, resp} ->
+        {:ok, %{ids: [], count: 0, estimate: Map.get(resp, "resultSizeEstimate", 0)}}
+
+      {:error, _} = e ->
+        e
+    end
+  end
+
+  def recent(_ctx, _args), do: {:error, :bad_request}
+
+  @doc """
+  Read just a message's headers (From/To/Subject/Date) + snippet via the
+  `format=metadata` projection — the read that works under `gmail.metadata`.
+  """
+  def headers(ctx, %{id: id}) when is_binary(id) do
+    url =
+      @base <>
+        "/messages/" <>
+        URI.encode(id, &URI.char_unreserved?/1) <>
+        "?format=metadata&metadataHeaders=From&metadataHeaders=To" <>
+        "&metadataHeaders=Subject&metadataHeaders=Date"
+
+    with {:ok, msg} when is_map(msg) <- get_json(ctx, url) do
+      {:ok, parse_message(msg)}
+    end
+  end
+
+  def headers(_ctx, _args), do: {:error, :bad_request}
+
   def read(ctx, %{id: id}) when is_binary(id) do
     url = @base <> "/messages/" <> URI.encode(id, &URI.char_unreserved?/1) <> "?format=full"
 
