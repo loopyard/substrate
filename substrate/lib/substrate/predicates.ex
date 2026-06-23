@@ -105,6 +105,12 @@ defmodule Substrate.Predicates do
 
   # --- name -> predicate (compiled into each policy rule at mount) ---
 
+  # always: the unconditional gate. Pairs with `(confirm-if always)` to route
+  # *every* call through human review — e.g. sending email. Never used with
+  # `deny-if` (that would brick the capability); the membrane only consults it
+  # for the confirm step.
+  def lookup("always"), do: fn _ctx, _args -> true end
+
   def lookup("escapes-jail"), do: &escapes_jail?/2
   def lookup("outside-safe"), do: &outside_safe?/2
   def lookup("write-denied"), do: &write_denied?/2
