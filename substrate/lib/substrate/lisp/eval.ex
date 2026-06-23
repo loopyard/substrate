@@ -386,12 +386,23 @@ defmodule Substrate.Lisp.Eval do
   # adjudicated by the membrane — never an ambient builtin. `str` builds the
   # line; `(io/print :text ...)` is the only way to emit it.
 
-  @builtins ~w(str count first rest empty? map filter get
+  @builtins ~w(str parse-json to-json count first rest empty? map filter get
                + - * = < > <= >= not inc dec join upcase downcase ends-with? list)
 
   defp builtin?(name), do: name in @builtins
 
   defp apply_builtin("str", args, _s), do: Enum.map_join(args, "", &Show.display/1)
+  # JSON is pure computation, no authority — it belongs here, not behind the wall.
+  # decode/1 yields string-keyed maps (read via `(get m "field")`); a bad string
+  # is nil, not a fault, so the agent can branch on it.
+  defp apply_builtin("parse-json", [s], _s) when is_binary(s) do
+    case Substrate.JSON.decode(s) do
+      {:ok, term} -> term
+      {:error, _} -> nil
+    end
+  end
+
+  defp apply_builtin("to-json", [term], _s), do: Substrate.JSON.encode(term)
   defp apply_builtin("count", [c], _s) when is_list(c), do: length(c)
   defp apply_builtin("count", [c], _s) when is_map(c), do: map_size(c)
   defp apply_builtin("first", [[h | _]], _s), do: h
