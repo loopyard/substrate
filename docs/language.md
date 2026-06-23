@@ -16,9 +16,9 @@ unlocks the capability** (see [overview.md](overview.md)).
 
 ## Why a Lisp
 
-The language leans Lisp/Scheme, and the reason is **homoiconicity** — code and
-data have the same shape. That one property buys most of the system's nicest
-features for free:
+The language **is** a Lisp/Scheme — this is decided, not leaning (see "The fork
+is closed" below). The reason is **homoiconicity** — code and data have the same
+shape. That one property buys most of the system's nicest features for free:
 
 - **code = data = docs.** A capability declaration is an s-expression; so is a
   call to it; so is the agent's own program. The agent reads its action space in
@@ -31,12 +31,40 @@ features for free:
   environment. Granting or revoking one is editing a lookup table, not
   recompiling the agent (see [lifecycle.md](lifecycle.md)).
 
-There is a real tension here, and it's an open fork (DESIGN.md fork 1):
-**Lisp vs Lua/Luau.** Lisp gives homoiconicity and clean sandboxing, but LLMs
-write less of it fluently. Luau is a proven embeddable sandbox and models are
-fluent in it — but stock Lua *leaks* (`io`, `os`, `package`) and you lose
-homoiconicity. The axis is *safest to sandbox* vs *most fluent for the model*,
-and it isn't settled. This doc uses Lisp syntax because the worked examples do.
+### The fork is closed — Lisp, not Lua
+
+This was the one real fork: **Lisp vs Lua/Luau** — *safest to sandbox* vs *most
+fluent for the model*. It is now decided in favor of Lisp, and the code already
+reflects it: `lib/substrate/lisp/` is the live reader + evaluator, and the
+airtight properties are built, not aspirational (a closed `@specials` dispatch,
+binary symbols — never `String.to_atom` — and a guarded process with a step
+budget, `max_heap_size`, and a wall-clock timeout).
+
+What settled it:
+
+- **Homoiconicity isn't a nicety here, it's the architecture.** Code = data =
+  docs means `describe` reads the live surface in the same form the agent writes
+  actions, with no schema to drift (see [capabilities.md](capabilities.md)).
+  Capabilities are symbols in an environment; granting one is a table edit, not a
+  recompile. Lua can do ocap via closures, but you'd marshal docs alongside a
+  foreign interpreter and bolt resource-metering around a loop you don't own.
+  In Lisp the reader, the evaluator, `describe`, and the metering are one small
+  thing we control end to end.
+- **Airtight is native, not configured.** With our own evaluator the wall is the
+  dispatch set itself; with embedded Lua you inherit a runtime and must
+  *subtract* what leaks (`io`, `os`, `package`, `load`) — the subtractive posture
+  this whole design rejects (DESIGN, "additive vs subtractive").
+- **The fluency gap is real but narrow for *this* use.** The objection is "models
+  write less Lisp." But (1) the agent emits *small glue* — compose-these-caps
+  programs, not applications — where a Scheme-like surface with strong priors is
+  plenty; (2) the genuinely novel part is the *capability vocabulary*, which the
+  model must learn either way, Lua or Lisp; and (3) the self-documenting surface
+  (`describe`) feeds that vocabulary back as in-context docs, neutralizing the
+  missing-corpus penalty at runtime rather than relying on training.
+
+Lua/Luau was the safe first-mile (a proven embeddable sandbox); we don't need the
+detour, and taking it would mean building the substrate twice. This doc uses Lisp
+syntax because Lisp is the language.
 
 ---
 
