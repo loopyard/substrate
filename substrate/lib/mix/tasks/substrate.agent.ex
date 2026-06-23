@@ -8,18 +8,31 @@ defmodule Mix.Tasks.Substrate.Agent do
   substrate-Lisp, and reacts to each disposition — exactly where a human sits in
   `mix substrate.repl`, but autonomous.
 
-      ANTHROPIC_API_KEY=sk-ant-... \\
-        mix substrate.agent priv/substrates/roots.lisp \\
-          --goal "Write a short note to /home/agent/hello.txt, then read it back."
+  Two model drivers are available (`--driver`):
 
-      mix substrate.agent priv/substrates/fs.lisp --cred fs_root=/tmp/sandbox \\
+    * `claude-code` — shell out to the local `claude -p` CLI; rides whatever auth
+      Claude Code already has, so **no API key is needed**. Claude is run with
+      every built-in tool disabled, so its only way to act is the Lisp it writes
+      into the seam.
+    * `anthropic` — call the Messages API directly (needs `ANTHROPIC_API_KEY`).
+
+  Default: `anthropic` if `ANTHROPIC_API_KEY` is set, otherwise `claude-code`.
+
+      # no key — drive with the logged-in Claude Code CLI
+      mix substrate.agent priv/substrates/roots.lisp \\
+        --goal "Write a short note to /home/agent/hello.txt, then read it back."
+
+      # explicit API driver
+      ANTHROPIC_API_KEY=sk-ant-... mix substrate.agent priv/substrates/fs.lisp \\
+        --driver anthropic --cred fs_root=/tmp/sandbox \\
         --goal "List the notes directory and summarise what's there."
 
   Options:
     --goal TEXT         the task for the agent (required)
-    --model ID          Claude model id (default claude-opus-4-8)
+    --driver NAME       claude-code | anthropic (default: auto, see above)
+    --model ID          model id (default: driver's own default)
     --max-steps N       emission budget before giving up (default 12)
-    --max-tokens N      per-response token cap (default 4096)
+    --max-tokens N      per-response token cap, anthropic driver (default 4096)
     --reveal            reveal capability policy rules in (describe)
     --cred KEY=VALUE    bind an L0 credential (repeatable)
   """
@@ -30,7 +43,7 @@ defmodule Mix.Tasks.Substrate.Agent do
   def run(argv) do
     {opts, paths, _} =
       OptionParser.parse(argv,
-        strict: [goal: :string, model: :string, max_steps: :integer, max_tokens: :integer, reveal: :boolean, cred: :keep]
+        strict: [goal: :string, driver: :string, model: :string, max_steps: :integer, max_tokens: :integer, reveal: :boolean, cred: :keep]
       )
 
     goal = Keyword.get(opts, :goal) || Mix.raise("--goal is required")
@@ -41,15 +54,12 @@ defmodule Mix.Tasks.Substrate.Agent do
     mount_opts = [reveal_rules: Keyword.get(opts, :reveal, false), credentials: parse_creds(opts)]
     {:ok, server} = Substrate.load(paths, mount_opts)
 
-    model =
-      Substrate.Agent.Anthropic.model(
-        model: Keyword.get(opts, :model, "claude-opus-4-8"),
-        max_tokens: Keyword.get(opts, :max_tokens, 4096)
-      )
+    driver = resolve_driver(Keyword.get(opts, :driver))
+    model = build_model(driver, opts)
 
     run_opts = [max_steps: Keyword.get(opts, :max_steps, 12), on_event: &narrate/1]
 
-    banner(goal)
+    banner(goal, driver)
 
     case Agent.run(server, goal, model, run_opts) do
       {:ok, run} -> report(server, run)
@@ -81,11 +91,48 @@ defmodule Mix.Tasks.Substrate.Agent do
     end
   end
 
-  defp banner(goal) do
+  defp banner(goal, driver) do
     IO.puts("")
     IO.puts(paint(35, "substrate agent") <> paint(90, "  —  an LLM at the L3 seam"))
+    IO.puts(paint(90, "driver: ") <> driver)
     IO.puts(paint(90, "goal: ") <> goal)
     IO.puts("")
+  end
+
+  # --- driver selection ---
+
+  defp resolve_driver(nil) do
+    if System.get_env("ANTHROPIC_API_KEY"), do: "anthropic", else: "claude-code"
+  end
+
+  defp resolve_driver(name) when name in ["anthropic", "claude-code", "claude"], do: normalize(name)
+  defp resolve_driver(other), do: Mix.raise("unknown --driver #{inspect(other)} (want: claude-code | anthropic)")
+
+  defp normalize("claude"), do: "claude-code"
+  defp normalize(name), do: name
+
+  defp build_model("anthropic", opts) do
+    Substrate.Agent.Anthropic.model(
+      model: Keyword.get(opts, :model, "claude-opus-4-8"),
+      max_tokens: Keyword.get(opts, :max_tokens, 4096)
+    )
+  end
+
+  defp build_model("claude-code", opts) do
+    model_opts = if id = Keyword.get(opts, :model), do: [model: id], else: []
+
+    case Substrate.Agent.ClaudeCode.available?(model_opts) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Mix.raise(
+          "claude-code driver unavailable: #{reason}\n" <>
+            "  Log in with `claude` (or set ANTHROPIC_API_KEY and use --driver anthropic)."
+        )
+    end
+
+    Substrate.Agent.ClaudeCode.model(model_opts)
   end
 
   # --- helpers ---
