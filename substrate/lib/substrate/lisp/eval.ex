@@ -380,18 +380,18 @@ defmodule Substrate.Lisp.Eval do
   end
 
   # --- builtins: pure stdlib, zero authority ---
+  #
+  # No I/O lives here. Printing reaches the operator across the trust boundary,
+  # so it is an *effect*, granted as the `io/print` capability (stdio.lisp) and
+  # adjudicated by the membrane — never an ambient builtin. `str` builds the
+  # line; `(io/print :text ...)` is the only way to emit it.
 
-  @builtins ~w(str log println count first rest empty? map filter get
+  @builtins ~w(str count first rest empty? map filter get
                + - * = < > <= >= not inc dec join upcase downcase ends-with? list)
 
   defp builtin?(name), do: name in @builtins
 
   defp apply_builtin("str", args, _s), do: Enum.map_join(args, "", &Show.display/1)
-  defp apply_builtin("log", args, _s) do
-    IO.puts("    [agent] " <> Enum.map_join(args, " ", &Show.display/1))
-    nil
-  end
-  defp apply_builtin("println", args, s), do: apply_builtin("log", args, s)
   defp apply_builtin("count", [c], _s) when is_list(c), do: length(c)
   defp apply_builtin("count", [c], _s) when is_map(c), do: map_size(c)
   defp apply_builtin("first", [[h | _]], _s), do: h

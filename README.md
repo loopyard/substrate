@@ -44,7 +44,7 @@ One emission, real control flow, zero round-trips:
   (for [f (:entries listing)]
     (let [r (fs/read :path f)]
       (when (> (:bytes r) 1000)
-        (log f "is" (:bytes r) "bytes")))))
+        (io/print :text (str f " is " (:bytes r) " bytes"))))))
 ```
 
 The agent reasons, writes code, runs it, and sees the result — in a single step.

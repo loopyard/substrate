@@ -76,7 +76,7 @@ defmodule Substrate.WebTest do
       (let [r (http/get :url "#{local(port)}")]
         (case r
           (:done d)   (fs/write :path "downloads/file.txt" :content (:body d))
-          (:denied e) (log "denied")))
+          (:denied e) "denied"))
       """
 
       assert {:done, %{path: "downloads/file.txt"}} = Harness.observe(s, program)
@@ -167,7 +167,7 @@ defmodule Substrate.WebTest do
       (let [r (http/get :url "#{local(port)}")]
         (case r
           (:done d)   (fs/write :path "../../tmp/exfil_#{System.unique_integer([:positive])}" :content (:body d))
-          (:denied e) (log "blocked at fetch")))
+          (:denied e) "blocked at fetch"))
       """
 
       # the GET succeeds; the write is denied — the exfil never lands

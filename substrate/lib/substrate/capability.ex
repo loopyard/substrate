@@ -64,8 +64,10 @@ defmodule Substrate.Capability do
   defp apply_clause({:list, [{:sym, "params"} | defs]}, cap),
     do: %{cap | params: Enum.map(defs, &compile_param/1)}
 
-  defp apply_clause({:list, [{:sym, "returns"}, shape]}, cap),
-    do: %{cap | returns: shape}
+  defp apply_clause({:list, [{:sym, "returns"}, shape]}, cap) do
+    intern_surface_atoms(shape)
+    %{cap | returns: shape}
+  end
 
   defp apply_clause({:list, [{:sym, "policy"} | rules]}, cap),
     do: %{cap | policy: Enum.map(rules, &compile_rule/1)}
@@ -80,6 +82,17 @@ defmodule Substrate.Capability do
   # at the wall like `bind`; resolved against the vault per call by the membrane.
   defp apply_clause({:list, [{:sym, "auth"} | _]} = form, cap),
     do: %{cap | auth: Auth.compile(form)}
+
+  # A return shape's field names are how the agent keys into a result map
+  # (`(:entries r)`): they are part of the surface the substrate declares. Intern
+  # them here on the trusted side — minting is allowed at compile time — so the
+  # `:existing`-mode reader accepts them by construction, instead of leaning on
+  # whichever module load happened to mint the atom first (ambient, racy).
+  defp intern_surface_atoms({:list, items}), do: Enum.each(items, &intern_surface_atoms/1)
+  defp intern_surface_atoms({:vec, items}), do: Enum.each(items, &intern_surface_atoms/1)
+  defp intern_surface_atoms({:map, items}), do: Enum.each(items, &intern_surface_atoms/1)
+  defp intern_surface_atoms({:sym, name}), do: _ = String.to_atom(name)
+  defp intern_surface_atoms(_), do: :ok
 
   defp compile_param({:list, [{:sym, name}, type | rest]}) do
     doc = case rest do
