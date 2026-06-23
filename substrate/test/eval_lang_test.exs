@@ -73,11 +73,14 @@ defmodule Substrate.EvalLangTest do
     end
   end
 
-  describe "known limitation: mutual recursion is not in scope (self-recursion is)" do
-    test "forward reference across two defns is unbound (use self-application or inline)", %{s: s} do
+  describe "mutual recursion (letrec*: defns in a sequence see each other)" do
+    test "forward reference across two defns resolves both directions", %{s: s} do
       prog = "(do (defn a [n] (if (= n 0) :a (b (dec n)))) (defn b [n] (if (= n 0) :b (a (dec n)))) (a 3))"
-      assert {:fault, msg} = Substrate.eval(s, prog)
-      assert msg =~ "unbound symbol `b`"
+      assert :b = Substrate.eval(s, prog)
+    end
+
+    test "a defn still closes over an earlier non-function binding (sequential)", %{s: s} do
+      assert 42 = Substrate.eval(s, "(do (def x 42) (defn get-x [] x) (get-x))")
     end
   end
 end

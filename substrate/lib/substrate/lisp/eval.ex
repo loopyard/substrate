@@ -18,7 +18,7 @@ defmodule Substrate.Lisp.Eval do
   """
 
   alias Substrate.{Server, Show}
-  alias Substrate.Lisp.Error
+  alias Substrate.Lisp.{Error, Stdlib}
 
   @specials ~w(do let for if cond case fn defn def and or describe await break quote grant as)
 
@@ -140,7 +140,7 @@ defmodule Substrate.Lisp.Eval do
     cond do
       name in @specials -> special(name, args, env, s)
       Server.known?(s, name) -> {capability_call(name, args, env, s), env}
-      builtin?(name) -> {apply_builtin(name, eval_args(args, env, s), s), env}
+      Stdlib.builtin?(name) -> {Stdlib.invoke(name, eval_args(args, env, s), &apply_fn(&1, &2, s)), env}
       Map.has_key?(env, name) -> {apply_fn(Map.fetch!(env, name), eval_args(args, env, s), s), env}
       true -> raise Error, "unbound symbol `#{name}`" <> bare_form_hint(form)
     end
@@ -214,11 +214,12 @@ defmodule Substrate.Lisp.Eval do
   end
 
   defp special("fn", [{:vec, params} | body], env, _s) do
-    {{:closure, param_names(params), body, env, nil}, env}
+    {{:closure, param_names(params), body, env, %{}}, env}
   end
 
   defp special("defn", [{:sym, name}, {:vec, params} | body], env, _s) do
-    closure = {:closure, param_names(params), body, env, name}
+    pn = param_names(params)
+    closure = {:closure, pn, body, env, %{name => {pn, body}}}
     {closure, Map.put(env, name, closure)}
   end
 
@@ -324,9 +325,28 @@ defmodule Substrate.Lisp.Eval do
 
   # --- helpers ---
 
+  # A sequence (program, `do`, fn/let body) is a `letrec*` scope: every `defn`
+  # in it is visible to every other (mutual recursion), while non-function
+  # bindings still take effect left-to-right. The shared `group` of sibling
+  # defns rides on each closure and is re-materialised at call time (apply_fn),
+  # so a body resolves its siblings no matter who is called first.
   defp eval_seq(forms, env, s) do
-    Enum.reduce(forms, {nil, env}, fn form, {_v, e} -> eval(form, e, s) end)
+    group = scan_defns(forms)
+    Enum.reduce(forms, {nil, env}, fn form, {_v, e} -> eval_seq_form(form, group, e, s) end)
   end
+
+  defp scan_defns(forms) do
+    for {:list, [{:sym, "defn"}, {:sym, name}, {:vec, params} | body]} <- forms,
+        into: %{},
+        do: {name, {param_names(params), body}}
+  end
+
+  defp eval_seq_form({:list, [{:sym, "defn"}, {:sym, name}, {:vec, params} | body]}, group, env, _s) do
+    closure = {:closure, param_names(params), body, env, group}
+    {closure, Map.put(env, name, closure)}
+  end
+
+  defp eval_seq_form(form, _group, env, s), do: eval(form, env, s)
 
   defp eval_args(args, env, s), do: Enum.map(args, fn a -> elem(eval(a, env, s), 0) end)
 
@@ -338,15 +358,16 @@ defmodule Substrate.Lisp.Eval do
 
   defp param_names(params), do: Enum.map(params, fn {:sym, n} -> n end)
 
-  defp apply_fn({:closure, names, body, cenv, self} = closure, argvals, s) do
+  defp apply_fn({:closure, names, body, cenv, group}, argvals, s) do
     if length(names) != length(argvals) do
       raise Error, "arity mismatch: expected #{length(names)}, got #{length(argvals)}"
     end
 
-    # letrec: a `defn` closure sees its own name bound to itself, so named
-    # self-recursion resolves naturally; `fn` closures are anonymous (self nil).
-    base = if self, do: Map.put(cenv, self, closure), else: cenv
-    inner = Enum.zip(names, argvals) |> Map.new() |> then(&Map.merge(base, &1))
+    # letrec: re-materialise every sibling defn (including self) into the call
+    # scope against this closure's captured env, so named self- and mutual
+    # recursion resolve. `fn` closures carry an empty group — a no-op here.
+    sibs = Map.new(group, fn {n, {ps, b}} -> {n, {:closure, ps, b, cenv, group}} end)
+    inner = Enum.zip(names, argvals) |> Map.new() |> then(&Map.merge(Map.merge(cenv, sibs), &1))
     {v, _} = eval_seq(body, inner, s)
     v
   end
@@ -356,7 +377,10 @@ defmodule Substrate.Lisp.Eval do
 
   defp match_clauses([], _val, _env, _s), do: nil
 
-  # clauses are flat pattern/body pairs:  (:done r) <body> (:denied d) <body> ...
+  defp match_clauses([_dangling], _val, _env, _s),
+    do: raise(Error, "case: a clause pattern is missing its body")
+
+  # clauses are flat pattern/body pairs:  (:done r) <body> 1 <body> x <body> ...
   defp match_clauses([pattern, body | rest], val, env, s) do
     case match_pattern(pattern, val) do
       {:ok, binds} -> elem(eval(body, Map.merge(env, binds), s), 0)
@@ -364,75 +388,30 @@ defmodule Substrate.Lisp.Eval do
     end
   end
 
-  # (:done r) — bind payload to r
+  # disposition patterns: (:done r) binds the payload, (:done) matches tag only
   defp match_pattern({:list, [{:kw, tag}, {:sym, bind}]}, {:disposition, tag, payload}),
     do: {:ok, %{bind => payload}}
 
-  # (:done) — match tag, no binding
   defp match_pattern({:list, [{:kw, tag}]}, {:disposition, tag, _}), do: {:ok, %{}}
-  # _ — wildcard
+
+  # literal patterns match by value
+  defp match_pattern({:int, n}, n), do: {:ok, %{}}
+  defp match_pattern({:str, x}, x), do: {:ok, %{}}
+  defp match_pattern({:bool, b}, b), do: {:ok, %{}}
+  defp match_pattern(nil, nil), do: {:ok, %{}}
+  defp match_pattern({:kw, k}, k), do: {:ok, %{}}
+
+  # `_` ignores; any other bare symbol binds the value (a catch-all default)
   defp match_pattern({:sym, "_"}, _val), do: {:ok, %{}}
+  defp match_pattern({:sym, name}, val), do: {:ok, %{name => val}}
+
   defp match_pattern(_pattern, _val), do: :no
 
-  defp truthy?(v), do: v != false and v != nil
+  defp truthy?(v), do: Stdlib.truthy?(v)
 
   defp bare_form_hint({:list, [{:sym, name} | _]}) do
     if String.contains?(name, "/"),
       do: "  (no such capability — `(describe)` the surface)",
       else: ""
   end
-
-  # --- builtins: pure stdlib, zero authority ---
-  #
-  # No I/O lives here. Printing reaches the operator across the trust boundary,
-  # so it is an *effect*, granted as the `io/print` capability (stdio.lisp) and
-  # adjudicated by the membrane — never an ambient builtin. `str` builds the
-  # line; `(io/print :text ...)` is the only way to emit it.
-
-  @builtins ~w(str parse-json to-json count first rest empty? map filter get
-               + - * = < > <= >= not inc dec join upcase downcase ends-with? list)
-
-  defp builtin?(name), do: name in @builtins
-
-  defp apply_builtin("str", args, _s), do: Enum.map_join(args, "", &Show.display/1)
-  # JSON is pure computation, no authority — it belongs here, not behind the wall.
-  # decode/1 yields string-keyed maps (read via `(get m "field")`); a bad string
-  # is nil, not a fault, so the agent can branch on it.
-  defp apply_builtin("parse-json", [s], _s) when is_binary(s) do
-    case Substrate.JSON.decode(s) do
-      {:ok, term} -> term
-      {:error, _} -> nil
-    end
-  end
-
-  defp apply_builtin("to-json", [term], _s), do: Substrate.JSON.encode(term)
-  defp apply_builtin("count", [c], _s) when is_list(c), do: length(c)
-  defp apply_builtin("count", [c], _s) when is_map(c), do: map_size(c)
-  defp apply_builtin("first", [[h | _]], _s), do: h
-  defp apply_builtin("first", [[]], _s), do: nil
-  defp apply_builtin("rest", [[_ | t]], _s), do: t
-  defp apply_builtin("rest", [[]], _s), do: []
-  defp apply_builtin("empty?", [c], _s) when is_list(c), do: c == []
-  defp apply_builtin("list", args, _s), do: args
-  defp apply_builtin("map", [f, coll], s), do: Enum.map(coll, &apply_fn(f, [&1], s))
-  defp apply_builtin("filter", [f, coll], s), do: Enum.filter(coll, &truthy?(apply_fn(f, [&1], s)))
-  defp apply_builtin("get", [m, k], _s) when is_map(m), do: Map.get(m, k)
-  defp apply_builtin("+", args, _s), do: Enum.sum(args)
-  defp apply_builtin("-", [a], _s), do: -a
-  defp apply_builtin("-", [a | rest], _s), do: Enum.reduce(rest, a, &(&2 - &1))
-  defp apply_builtin("*", args, _s), do: Enum.reduce(args, 1, &(&1 * &2))
-  defp apply_builtin("inc", [a], _s), do: a + 1
-  defp apply_builtin("dec", [a], _s), do: a - 1
-  defp apply_builtin("=", [a | rest], _s), do: Enum.all?(rest, &(&1 == a))
-  defp apply_builtin("<", [a, b], _s), do: a < b
-  defp apply_builtin(">", [a, b], _s), do: a > b
-  defp apply_builtin("<=", [a, b], _s), do: a <= b
-  defp apply_builtin(">=", [a, b], _s), do: a >= b
-  defp apply_builtin("not", [a], _s), do: not truthy?(a)
-  defp apply_builtin("join", [coll, sep], _s), do: Enum.map_join(coll, sep, &Show.display/1)
-  defp apply_builtin("upcase", [str], _s), do: String.upcase(str)
-  defp apply_builtin("downcase", [str], _s), do: String.downcase(str)
-  defp apply_builtin("ends-with?", [str, suffix], _s), do: String.ends_with?(str, suffix)
-  defp apply_builtin(name, args, _s),
-    do: raise(Error, "builtin `#{name}` got bad args: #{Show.form(args)}")
 end
