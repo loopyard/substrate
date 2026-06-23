@@ -9,17 +9,20 @@ defmodule Substrate.Server do
   change *while the agent runs* (DESIGN: live & mutable). `revoke/2` keeps the
   signature and flips the capability to `:denied` — it never vanishes.
 
-  All capability calls funnel through here and come back as dispositions; the
-  GenServer serializes them, which is what lets the membrane keep consistent
-  rate/queue state.
+  Several substrates can share one surface: each `mount/3` appends a namespace
+  (e.g. `fs`, then `http`) and *merges* its L0 credentials into the vault, so an
+  agent can compose across them — `http/get` a file, then `fs/write` it — while
+  every call still funnels through the same membrane. The GenServer serializes
+  calls, which is what lets the membrane keep consistent rate/queue state.
   """
   use GenServer
 
   alias Substrate.{Capability, Membrane, Vault}
 
-  defstruct caps: %{}, order: [], ns: nil, ns_doc: nil,
-            ctx: nil, root: nil, revoked: MapSet.new(),
-            rate: %{}, queue: %{}, eff_counter: 0
+  # subs: per-namespace listings; caps: flat name -> %Capability{} registry;
+  # creds: the accumulated L0 credential map the vault ctx is minted from.
+  defstruct subs: [], caps: %{}, creds: %{}, ctx: nil,
+            revoked: MapSet.new(), rate: %{}, queue: %{}, eff_counter: 0
 
   # --- lifecycle ---
 
@@ -28,11 +31,15 @@ defmodule Substrate.Server do
   end
 
   @impl true
-  def init(_opts), do: {:ok, %__MODULE__{}}
+  def init(_opts), do: {:ok, %__MODULE__{ctx: Vault.mint(%{})}}
 
   # --- L0/L2 authoring API (trusted side of the wall) ---
 
-  @doc "Mount a manifest, binding credentials at L0. The only place the root is named."
+  @doc """
+  Mount a manifest, binding its credentials at L0. The only place the jail root
+  and allowlists are named. Mounting again *adds* a namespace and merges
+  credentials — it does not replace the prior surface.
+  """
   def mount(server, manifest_ast, opts) do
     GenServer.call(server, {:mount, manifest_ast, opts})
   end
@@ -56,16 +63,15 @@ defmodule Substrate.Server do
   @impl true
   def handle_call({:mount, ast, opts}, _from, state) do
     {ns, ns_doc, caps} = Capability.compile_manifest(ast)
-    creds = Keyword.get(opts, :credentials, %{})
+    creds = Map.merge(state.creds, Keyword.get(opts, :credentials, %{}))
+    sub = %{ns: ns, doc: ns_doc, order: Enum.map(caps, & &1.name)}
 
     state = %{
       state
-      | ns: ns,
-        ns_doc: ns_doc,
+      | subs: state.subs ++ [sub],
         caps: Map.merge(state.caps, Map.new(caps, &{&1.name, &1})),
-        order: state.order ++ Enum.map(caps, & &1.name),
-        ctx: Vault.mint(creds),
-        root: Map.get(creds, :fs_root)
+        creds: creds,
+        ctx: Vault.mint(creds)
     }
 
     {:reply, :ok, state}
@@ -103,20 +109,23 @@ defmodule Substrate.Server do
 
   # --- describe rendering: the self-describing surface ---
 
-  defp render_describe(state, nil), do: render_namespace(state)
+  # no target: list every mounted substrate
+  defp render_describe(state, nil),
+    do: Enum.map_join(state.subs, "\n\n", &render_namespace(&1, state))
+
   defp render_describe(state, target) do
     cond do
-      target == state.ns -> render_namespace(state)
+      sub = Enum.find(state.subs, &(&1.ns == target)) -> render_namespace(sub, state)
       Map.has_key?(state.caps, target) -> Capability.describe(state.caps[target])
       true -> "; unknown: #{target}"
     end
   end
 
-  defp render_namespace(state) do
-    header = "#{state.ns} — #{inspect(state.ns_doc)}"
+  defp render_namespace(sub, state) do
+    header = "#{sub.ns} — #{inspect(sub.doc)}"
 
     rows =
-      Enum.map_join(state.order, "\n", fn name ->
+      Enum.map_join(sub.order, "\n", fn name ->
         cap = state.caps[name]
         tag = if MapSet.member?(state.revoked, name), do: "   [revoked]", else: ""
         "  " <> Capability.signature(cap) <> tag

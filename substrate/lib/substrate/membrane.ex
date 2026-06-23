@@ -29,11 +29,11 @@ defmodule Substrate.Membrane do
       msg = missing_params(cap, args) ->
         {{:invalid, msg}, state}
 
-      reason = denied_by_policy(cap, state.root, args) ->
+      reason = denied_by_policy(cap, state.ctx, args) ->
         {disp(:denied, %{reason: reason}), state}
 
       true ->
-        case check_rate(cap, state, state.root, args) do
+        case check_rate(cap, state, state.ctx, args) do
           {:limited, retry} ->
             {disp(:"rate-limited", %{retry_after: retry}), state}
 
@@ -44,7 +44,7 @@ defmodule Substrate.Membrane do
   end
 
   defp proceed(cap, state, name, args) do
-    if confirm_required?(cap, state.root, args) do
+    if confirm_required?(cap, state.ctx, args) do
       enqueue(state, name, args)
     else
       {execute(cap, state.ctx, args), state}
@@ -62,21 +62,21 @@ defmodule Substrate.Membrane do
     end
   end
 
-  defp denied_by_policy(cap, root, args) do
+  defp denied_by_policy(cap, ctx, args) do
     Enum.find_value(cap.policy, fn
-      {:deny_if, _name, pred} -> if pred.(root, args), do: "denied by policy"
+      {:deny_if, _name, pred} -> if pred.(ctx, args), do: "denied by policy"
       _ -> nil
     end)
   end
 
-  defp check_rate(cap, state, root, args) do
+  defp check_rate(cap, state, ctx, args) do
     case Enum.find(cap.policy, &match?({:rate, _, _, _}, &1)) do
       nil ->
         {:ok, state}
 
       {:rate, _l, _w, {_name, gfun}} = rule ->
         # location-guarded rate: only applies where the guard holds (else unlimited)
-        if gfun.(root, args), do: apply_rate(rule, cap, state), else: {:ok, state}
+        if gfun.(ctx, args), do: apply_rate(rule, cap, state), else: {:ok, state}
 
       rule ->
         apply_rate(rule, cap, state)
@@ -95,9 +95,9 @@ defmodule Substrate.Membrane do
         end
   end
 
-  defp confirm_required?(cap, root, args) do
+  defp confirm_required?(cap, ctx, args) do
     Enum.any?(cap.policy, fn
-      {:confirm_if, _name, pred} -> pred.(root, args)
+      {:confirm_if, _name, pred} -> pred.(ctx, args)
       _ -> false
     end)
   end

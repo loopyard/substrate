@@ -14,7 +14,9 @@ defmodule Substrate.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      # :inets + :ssl power the HTTP substrate's native edge (Substrate.HTTP);
+      # both ship with OTP, so the substrate has no external deps.
+      extra_applications: [:logger, :inets, :ssl],
       mod: {Substrate.Application, []}
     ]
   end

@@ -43,8 +43,8 @@ Two clamps bound the agent on both ends:
 L3  Harness    — untrusted reasoner; introspects → writes a program → re-observes
 ─── membrane   — intent → disposition; adjudication pipeline; human oversight
 L2  Substrate  — sandboxed Lisp; capability-secure; self-describing; LIVE surface
-L1  Libraries  — native FS client (full authority)
-L0  Runtime    — Elixir/OTP; the jail-root credential, supervision
+L1  Libraries  — native edges, full authority: FS client · HTTP client
+L0  Runtime    — Elixir/OTP; the vault — jail root + allowlists, named once
 ```
 
 | Layer | Module(s) | Trusted? |
@@ -52,8 +52,12 @@ L0  Runtime    — Elixir/OTP; the jail-root credential, supervision
 | **L3 Harness** | your code calling `Substrate.eval/2` | **no** |
 | **membrane** | `Substrate.Membrane` | yes |
 | **L2 Substrate** | `Substrate.Lisp.{Reader,Eval}`, `Substrate.Server` (registry) | yes |
-| **L1 Libraries** | `Substrate.FS` (native edge) | yes |
-| **L0 Runtime** | `Substrate.Vault` (credential), OTP | yes |
+| **L1 Libraries** | `Substrate.FS`, `Substrate.HTTP` (native edges) | yes |
+| **L0 Runtime** | `Substrate.Vault` (jail root + allowlists), OTP | yes |
+
+Several substrates can share one surface: mount `fs` then `http` and an agent
+composes across them — `http/get` a file, then `fs/write` it — while every call
+still funnels through the same membrane.
 
 The agent only ever touches `Substrate.eval(server, source)`. It hands in
 substrate-Lisp and gets back a value — almost always a disposition. It cannot
@@ -138,11 +142,15 @@ Pipeline order: `revoked? → validate → deny-if → rate → confirm-if → e
 Only the last step crosses into native code.
 
 Predicates available (trusted, in `Substrate.Predicates`): `escapes-jail`,
-`outside-safe`, `in-bulk`, `in-data`, `in-published`, `in-archive`.
+`outside-safe`, `in-bulk`, `in-data`, `in-published`, `in-archive`, and the
+two **default-deny allowlists** — `write-denied` (refuse any write outside the
+`:fs_allow` dirs) and `host-denied` (refuse any host outside the `:http_allow`
+list). Each reads its config from the L0 vault, so the agent can neither read
+the allowlist nor name anything off it; an *absent* allowlist denies everything.
 
 ---
 
-## The four bundled substrates
+## The bundled substrates
 
 | Manifest | Demo | Shows |
 |---|---|---|
@@ -150,6 +158,7 @@ Predicates available (trusted, in `Substrate.Predicates`): `escapes-jail`,
 | `archive.lisp` | `archive_demo.exs` | **rate-limited + path-restricted, read-only by construction** (no write capability exists) |
 | `spool.lisp` | `spool_demo.exs` | a write capability **capped at 10 files/second** (per-second window resets) |
 | `zoned.lisp` | `zoned_demo.exs` | **one `fs/write`, four regimes by location** — bulk unlimited · data rate-limited · published human-approved · archive read-only |
+| `http.lisp` + `fs_locked.lisp` | `web_demo.exs` | **surf + download + save, default-deny** — `http/get` reaches only allowlisted hosts, `fs/write` only allowlisted dirs; the demo downloads a real file to disk, then tries (and fails) to reach other hosts, write elsewhere, escape the jail, and exfiltrate |
 
 Run any one: `mix run zoned_demo.exs` (or `./demos.sh zoned`).
 
@@ -177,16 +186,18 @@ Substrate.revoke(s, "fs/write")   # live registry write — signature stays, err
 ```
 lib/substrate.ex            public API (start_link, mount, eval, revoke, approve…)
 lib/substrate/
-  vault.ex                  L0 — the credential store (jail root)
+  vault.ex                  L0 — the credential store (jail root + allowlists)
   fs.ex                     L1 — native filesystem edge (path-clamped)
-  predicates.ex             trusted policy predicates (jail, zones)
+  http.ex                   L1 — native HTTP(S) edge (host-allowlisted)
+  predicates.ex             trusted policy predicates (jail, zones, allowlists)
   capability.ex             compile a manifest; render the stripped `describe`
   membrane.ex               adjudication pipeline → disposition
   server.ex                 the live registry + rate/queue state (GenServer)
   show.ex                   render values back into surface syntax
   lisp/reader.ex            source → s-expression AST
   lisp/eval.ex              the sandboxed evaluator (zero ambient authority)
-priv/manifests/*.lisp       capability surfaces (fs, archive, spool, zoned)
+priv/manifests/*.lisp       capability surfaces (fs, archive, spool, zoned,
+                              http, fs_locked)
 *_demo.exs                  runnable demos     demos.sh — run them all
 ```
 
