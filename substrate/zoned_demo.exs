@@ -29,8 +29,8 @@ for z <- ~w(bulk data published archive), do: File.mkdir_p!(Path.join(root, z))
 File.write!(Path.join(root, "archive/2025.txt"), "last year's records")
 
 {:ok, s} = Substrate.start_link(name: nil)
-manifest = "priv/manifests/zoned.lisp" |> File.read!() |> Substrate.read_manifest()
-:ok = Substrate.mount(s, manifest, credentials: %{fs_root: root})
+substrate = "priv/substrates/zoned.lisp" |> File.read!() |> Substrate.read_substrate()
+:ok = Substrate.mount(s, substrate, credentials: %{fs_root: root})
 IO.puts("\e[1mzoned substrate up.\e[0m  bulk=unlimited  data=5/min  published=approval  archive=read-only")
 
 D.hr("the policy the agent sees (location-guarded rate visible; mechanism abstracted)")

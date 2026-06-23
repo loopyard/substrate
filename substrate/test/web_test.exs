@@ -49,8 +49,8 @@ defmodule Substrate.WebTest do
     on_exit(fn -> File.rm_rf!(root) end)
 
     {:ok, s} = Substrate.start_link(name: nil)
-    fs = "priv/manifests/fs_locked.lisp" |> File.read!() |> Substrate.read_manifest()
-    http = "priv/manifests/http.lisp" |> File.read!() |> Substrate.read_manifest()
+    fs = "priv/substrates/fs_locked.lisp" |> File.read!() |> Substrate.read_substrate()
+    http = "priv/substrates/http.lisp" |> File.read!() |> Substrate.read_substrate()
 
     # DENY-ALL by default; two holes, both named only here at L0:
     :ok = Substrate.mount(s, fs, credentials: %{fs_root: root, fs_allow: ["downloads"]})
@@ -120,7 +120,7 @@ defmodule Substrate.WebTest do
 
     test "deny-all: with no allowlist at all, every host is denied" do
       {:ok, s2} = Substrate.start_link(name: nil)
-      http = "priv/manifests/http.lisp" |> File.read!() |> Substrate.read_manifest()
+      http = "priv/substrates/http.lisp" |> File.read!() |> Substrate.read_substrate()
       :ok = Substrate.mount(s2, http, credentials: %{})
 
       assert {:disposition, :denied, _} =
@@ -152,7 +152,7 @@ defmodule Substrate.WebTest do
       root2 = Path.join(System.tmp_dir!(), "noallow_#{System.unique_integer([:positive])}")
       File.mkdir_p!(Path.join(root2, "downloads"))
       on_exit(fn -> File.rm_rf!(root2) end)
-      fs = "priv/manifests/fs_locked.lisp" |> File.read!() |> Substrate.read_manifest()
+      fs = "priv/substrates/fs_locked.lisp" |> File.read!() |> Substrate.read_substrate()
       :ok = Substrate.mount(s2, fs, credentials: %{fs_root: root2})
 
       assert {:denied, _} =

@@ -43,12 +43,12 @@ defmodule Substrate.Server do
   # --- L0/L2 authoring API (trusted side of the wall) ---
 
   @doc """
-  Mount a manifest, binding its credentials at L0. The only place the jail root
+  Mount a substrate, binding its credentials at L0. The only place the jail root
   and allowlists are named. Mounting again *adds* a namespace and merges
   credentials — it does not replace the prior surface.
   """
-  def mount(server, manifest_ast, opts) do
-    GenServer.call(server, {:mount, manifest_ast, opts})
+  def mount(server, substrate_ast, opts) do
+    GenServer.call(server, {:mount, substrate_ast, opts})
   end
 
   def revoke(server, name), do: GenServer.call(server, {:revoke, name})
@@ -84,9 +84,9 @@ defmodule Substrate.Server do
 
   @impl true
   def handle_call({:mount, ast, opts}, _from, state) do
-    {ns, ns_doc, caps, config} = Capability.compile_manifest(ast)
+    {ns, ns_doc, caps, config} = Capability.compile_substrate(ast)
 
-    # creds layer: prior mounts < this manifest's own resources/secrets <
+    # creds layer: prior mounts < this substrate's own resources/secrets <
     # explicit mount credentials (the integrator always gets the last word).
     creds =
       state.creds
@@ -186,7 +186,7 @@ defmodule Substrate.Server do
     Map.get(state.reveal, ns, false)
   end
 
-  # --- manifest config → vault credentials (resources + resolved secrets) ---
+  # --- substrate config → vault credentials (resources + resolved secrets) ---
 
   defp resolve_config(%{resources: resources, secrets: secrets}) do
     resolved =

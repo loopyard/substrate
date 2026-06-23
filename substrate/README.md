@@ -100,11 +100,11 @@ credential. Naming one is an unbound-symbol fault.
 
 ---
 
-## Capabilities & the manifest
+## Capabilities & the substrate
 
 A capability is declared in **one place** — docstring, typed params, return
 shape, policy, example, and native binding are a single s-expression
-(`priv/manifests/*.lisp`):
+(`priv/substrates/*.lisp`):
 
 ```lisp
 (capability fs/write
@@ -158,7 +158,7 @@ the allowlist nor name anything off it; an *absent* allowlist denies everything.
 
 ## The bundled substrates
 
-| Manifest | Demo | Shows |
+| Substrate | Demo | Shows |
 |---|---|---|
 | `dir.lisp` | — | **the simplest substrate** — read + write confined to one directory; nothing escapes the jail |
 | `github.lisp` | — | **one self-contained artifact** — `resource` + `secret` + `auth`: authenticated GitHub access where the agent holds no token (load with `Substrate.load/1`) |
@@ -177,10 +177,10 @@ Run any one: `mix run zoned_demo.exs` (or `./demos.sh zoned`).
 
 ```elixir
 {:ok, s} = Substrate.start_link(name: nil)
-manifest = "priv/manifests/zoned.lisp" |> File.read!() |> Substrate.read_manifest()
+substrate = "priv/substrates/zoned.lisp" |> File.read!() |> Substrate.read_substrate()
 
 # the jail root is the credential — named exactly once, here, at L0
-:ok = Substrate.mount(s, manifest, credentials: %{fs_root: "/some/sandbox"})
+:ok = Substrate.mount(s, substrate, credentials: %{fs_root: "/some/sandbox"})
 
 Substrate.eval(s, ~s|(fs/write :path "data/x.txt" :content "hi")|)
 #=> {:disposition, :"rate-limited", %{retry_after: 41}}   # for example
@@ -192,9 +192,9 @@ Substrate.revoke(s, "fs/write")   # live registry write — signature stays, err
 
 ## One artifact: `load`, secrets, authenticated resources
 
-A manifest can carry its own L0 config — an allowlist (`resource`) and a
+A substrate can carry its own L0 config — an allowlist (`resource`) and a
 credential pulled from the environment at load (`secret`) — so the whole sealed
-sandbox is **one loadable file** instead of a manifest plus separate mount code.
+sandbox is **one loadable file** instead of a substrate plus separate mount code.
 `Substrate.load/2` resolves the secrets on the trusted side and hands back a
 running substrate:
 
@@ -212,7 +212,7 @@ running substrate:
 ```
 
 ```elixir
-{:ok, s} = Substrate.load("priv/manifests/github.lisp")   # env → vault → mounted
+{:ok, s} = Substrate.load("priv/substrates/github.lisp")   # env → vault → mounted
 Substrate.eval(s, ~s|(gh/get :url "https://api.github.com/repos/torvalds/linux")|)
 ```
 
@@ -229,7 +229,7 @@ the `:denied`, silent about the rule). Mount with `reveal_rules: true` and
 while the **value** stays vaulted:
 
 ```elixir
-{:ok, s} = Substrate.load("priv/manifests/fs_locked.lisp",
+{:ok, s} = Substrate.load("priv/substrates/fs_locked.lisp",
              credentials: %{fs_root: root, fs_allow: ["downloads"]}, reveal_rules: true)
 
 Substrate.eval(s, "(describe fs/write)")
@@ -281,14 +281,14 @@ lib/substrate/
   http.ex                   L1 — native HTTP(S) edge (host-allowlisted, auth-injecting)
   auth.ex                   resolve a capability's `auth` template against the vault
   predicates.ex             trusted policy predicates (jail, zones, allowlists)
-  capability.ex             compile a manifest (caps + resource/secret/auth);
+  capability.ex             compile a substrate (caps + resource/secret/auth);
                               render the stripped `describe` (abstract or revealed)
   membrane.ex               adjudication pipeline → disposition; injects auth
   server.ex                 live registry + rate/queue + audit log + attenuate (GenServer)
   show.ex                   render values back into surface syntax
   lisp/reader.ex            source → s-expression AST
   lisp/eval.ex              the sandboxed evaluator (zero ambient authority; grant/as)
-priv/manifests/*.lisp       capability surfaces (dir, fs, archive, spool, zoned,
+priv/substrates/*.lisp       capability surfaces (dir, fs, archive, spool, zoned,
                               http, fs_locked, github)
 *_demo.exs                  runnable demos     demos.sh — run them all
 ```

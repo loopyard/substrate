@@ -9,7 +9,7 @@ with **policy**, and hand the result to an LLM. Three actors, one wall:
   ┌───────────────────────────────────────┐        ┌──────────────────────┐
   │ L0  mint the vault: jail root +        │        │  reads (describe)    │
   │     allowlists  (the secrets)          │        │  emits a program     │
-  │ L2  mount manifests: the capabilities  │  wall  │  reads the           │
+  │ L2  mount substrates: the capabilities  │  wall  │  reads the           │
   │     + which policy RULES apply         │ ─────► │     disposition      │
   └───────────────────────────────────────┘        │  reacts, loops       │
                   the membrane adjudicates ─────────└──────────────────────┘
@@ -25,8 +25,8 @@ wall.
 
 ## Act 1 — Assemble: two substrates, one surface
 
-A "substrate" is a manifest (`priv/manifests/*.lisp`) plus the native edge it
-binds to. You `mount` each onto one running server; they share a wall and a
+A substrate is a single file (`priv/substrates/*.lisp`) — capability
+declarations plus their rules — together with the native edge it binds to. You `mount` each onto one running server; they share a wall and a
 membrane.
 
 ```elixir
@@ -38,9 +38,9 @@ File.mkdir_p!(Path.join(root, "cache"))
 # One server = one surface = one membrane.
 {:ok, s} = Substrate.start_link(name: nil)
 
-# Parse the two manifests…
-fs   = "priv/manifests/fs_locked.lisp" |> File.read!() |> Substrate.read_manifest()
-http = "priv/manifests/http.lisp"      |> File.read!() |> Substrate.read_manifest()
+# Parse the two substrates…
+fs   = "priv/substrates/fs_locked.lisp" |> File.read!() |> Substrate.read_substrate()
+http = "priv/substrates/http.lisp"      |> File.read!() |> Substrate.read_substrate()
 
 # …and mount them. Each mount adds a namespace AND binds that substrate's
 # L0 secrets. Mounting twice composes — it does not replace.
@@ -54,18 +54,18 @@ side on the same surface.
 
 ---
 
-## Act 2 — Policy: a rule (in the manifest) + a value (at L0)
+## Act 2 — Policy: a rule (in the substrate) + a value (at L0)
 
 This is the part worth internalizing. **Policy is two halves, and they live in
 two different places:**
 
 | Half | Where it lives | Who writes it | Example |
 |---|---|---|---|
-| **The rule** — *that* writes are allowlist-gated | the manifest `policy` block, by predicate name | the substrate author | `(deny-if write-denied)` |
+| **The rule** — *that* writes are allowlist-gated | the substrate `policy` block, by predicate name | the substrate author | `(deny-if write-denied)` |
 | **The value** — *which* dirs/hosts are on the list | the L0 `credentials` at mount | you, the integrator | `fs_allow: ["downloads", "cache"]` |
 
-So the manifest says **"deny writes outside the allowlist"**; your `mount` call
-says **"…and the allowlist is `downloads/` and `cache/`."** The same manifest,
+So the substrate says **"deny writes outside the allowlist"**; your `mount` call
+says **"…and the allowlist is `downloads/` and `cache/`."** The same substrate,
 mounted with different credentials, is a different policy — *no code change*:
 
 ```elixir
@@ -84,7 +84,7 @@ mount(s, fs, credentials: %{fs_root: root})
 refuses everything. Opening a hole is an L0 act — adding an entry to the vault —
 never something the agent can do from inside.
 
-Here are the two manifests' policy blocks as written (the rules), and the
+Here are the two substrates' policy blocks as written (the rules), and the
 credentials that fill them (the values):
 
 ```lisp
@@ -232,8 +232,8 @@ root = "/tmp/agent_jail"
 File.mkdir_p!(Path.join(root, "downloads"))
 
 {:ok, s} = Substrate.start_link(name: nil)
-fs   = "priv/manifests/fs_locked.lisp" |> File.read!() |> Substrate.read_manifest()
-http = "priv/manifests/http.lisp"      |> File.read!() |> Substrate.read_manifest()
+fs   = "priv/substrates/fs_locked.lisp" |> File.read!() |> Substrate.read_substrate()
+http = "priv/substrates/http.lisp"      |> File.read!() |> Substrate.read_substrate()
 :ok  = Substrate.mount(s, fs,   credentials: %{fs_root: root, fs_allow: ["downloads"]})
 :ok  = Substrate.mount(s, http, credentials: %{http_allow: ["raw.githubusercontent.com"]})
 

@@ -26,8 +26,8 @@ File.write!(Path.join(archive, "2026-q2.txt"), "Q2: shipped the live registry")
 File.write!(Path.join(System.tmp_dir!(), "NOT_the_archive.txt"), "off limits")
 
 {:ok, s} = Substrate.start_link(name: nil)
-manifest = "priv/manifests/archive.lisp" |> File.read!() |> Substrate.read_manifest()
-:ok = Substrate.mount(s, manifest, credentials: %{fs_root: archive})
+substrate = "priv/substrates/archive.lisp" |> File.read!() |> Substrate.read_substrate()
+:ok = Substrate.mount(s, substrate, credentials: %{fs_root: archive})
 IO.puts("\e[1marchive substrate up.\e[0m confined to: #{archive}  (rate: 3/min)")
 
 D.hr("1. THE SURFACE — read-only (no write/delete capability exists at all)")

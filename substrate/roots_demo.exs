@@ -28,7 +28,7 @@ end
 
 # --- L0/L2 authoring: load the artifact. The allowlist (/home) lives in the file. ---
 File.mkdir_p!("/home/agent")
-{:ok, s} = Substrate.load("priv/manifests/roots.lisp")
+{:ok, s} = Substrate.load("priv/substrates/roots.lisp")
 
 IO.puts("\e[1mSubstrate up.\e[0m allowed roots bound at L0 from roots.lisp: [\"/home\"]")
 IO.puts("\e[2mthe process is running as: #{System.cmd("whoami", []) |> elem(0) |> String.trim()}\e[0m")

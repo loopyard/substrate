@@ -17,13 +17,13 @@ run = fn s, src ->
   res
 end
 
-# --- L0/L2: load the locked-fs manifest, reveal its rules to the agent ---
+# --- L0/L2: load the locked-fs substrate, reveal its rules to the agent ---
 root = Path.join(System.tmp_dir!(), "delegate_demo")
 File.rm_rf!(root)
 for d <- ~w(downloads cache), do: File.mkdir_p!(Path.join(root, d))
 
 {:ok, s} =
-  Substrate.load("priv/manifests/fs_locked.lisp",
+  Substrate.load("priv/substrates/fs_locked.lisp",
     credentials: %{fs_root: root, fs_allow: ["downloads", "cache"]},
     reveal_rules: true
   )

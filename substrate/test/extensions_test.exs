@@ -2,7 +2,7 @@ defmodule Substrate.ExtensionsTest do
   @moduledoc """
   The substrate's authoring/runtime extensions, each with its security guard:
 
-    * `load/2`            — a manifest file becomes a running substrate
+    * `load/2`            — a substrate file becomes a running substrate
     * secrets + auth      — the trusted side authenticates; the agent holds nothing
     * audit log           — every adjudicated call is recorded trusted-side
     * readable `describe` — the RULE is shown, the VALUE stays vaulted
@@ -47,8 +47,8 @@ defmodule Substrate.ExtensionsTest do
       %{root: root}
     end
 
-    test "loading a manifest file gives a working substrate", %{root: root} do
-      {:ok, s} = Substrate.load("priv/manifests/dir.lisp", credentials: %{fs_root: root})
+    test "loading a substrate file gives a working substrate", %{root: root} do
+      {:ok, s} = Substrate.load("priv/substrates/dir.lisp", credentials: %{fs_root: root})
 
       assert Substrate.eval(s, "(describe)") =~ "dir/write"
       assert {:disposition, :done, _} =
@@ -69,7 +69,7 @@ defmodule Substrate.ExtensionsTest do
       on_exit(fn -> File.rm_rf!(base) end)
 
       # the file declares ["/home"]; the integrator pins it to a tmp root for the test
-      {:ok, s} = Substrate.load("priv/manifests/roots.lisp", credentials: %{fs_roots: [allowed]})
+      {:ok, s} = Substrate.load("priv/substrates/roots.lisp", credentials: %{fs_roots: [allowed]})
       %{s: s, allowed: allowed, forbidden: forbidden}
     end
 
@@ -183,7 +183,7 @@ defmodule Substrate.ExtensionsTest do
 
     test "reveal_rules shows the glossed guard but never the allowlist value", %{root: root} do
       {:ok, s} =
-        Substrate.load("priv/manifests/fs_locked.lisp",
+        Substrate.load("priv/substrates/fs_locked.lisp",
           credentials: %{fs_root: root, fs_allow: ["downloads"]},
           reveal_rules: true
         )
@@ -199,7 +199,7 @@ defmodule Substrate.ExtensionsTest do
 
     test "default (abstract) posture still hides deny-if entirely", %{root: root} do
       {:ok, s} =
-        Substrate.load("priv/manifests/fs_locked.lisp",
+        Substrate.load("priv/substrates/fs_locked.lisp",
           credentials: %{fs_root: root, fs_allow: ["downloads"]}
         )
 
@@ -220,7 +220,7 @@ defmodule Substrate.ExtensionsTest do
 
       # parent may write to downloads AND cache
       {:ok, s} =
-        Substrate.load("priv/manifests/fs_locked.lisp",
+        Substrate.load("priv/substrates/fs_locked.lisp",
           credentials: %{fs_root: root, fs_allow: ["downloads", "cache"]}
         )
 

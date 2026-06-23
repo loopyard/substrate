@@ -17,7 +17,7 @@ defmodule Substrate do
   alias Substrate.Lisp.{Reader, Eval, Error}
 
   defdelegate start_link(opts), to: Server
-  defdelegate mount(server, manifest_ast, opts), to: Server
+  defdelegate mount(server, substrate_ast, opts), to: Server
   defdelegate revoke(server, name), to: Server
   defdelegate restore(server, name), to: Server
   defdelegate approve(server, handle), to: Server
@@ -25,16 +25,16 @@ defmodule Substrate do
   defdelegate attenuate(server, narrowing), to: Server
   defdelegate audit(server), to: Server
 
-  @doc "Parse a manifest source string into AST ready for `mount/3`."
-  def read_manifest(src), do: Reader.read_one(src)
+  @doc "Parse a substrate source string into AST ready for `mount/3`."
+  def read_substrate(src), do: Reader.read_one(src)
 
   @doc """
-  Load one or more manifest files into a fresh running substrate — the artifact
+  Load one or more substrate files into a fresh running substrate — the artifact
   becomes the runtime. Each file's `resource`/`secret` declarations are resolved
   (env vars read on this trusted side) and bound into the vault; the agent
-  attaches to the returned server and reaches only what the manifests exposed.
+  attaches to the returned server and reaches only what the substrates exposed.
 
-      {:ok, s} = Substrate.load("priv/manifests/github.lisp")
+      {:ok, s} = Substrate.load("priv/substrates/github.lisp")
       {:ok, s} = Substrate.load(["fs_locked.lisp", "github.lisp"], reveal_rules: true)
 
   `opts` are passed to each `mount` (e.g. `:reveal_rules`, or `:credentials` to
@@ -48,7 +48,7 @@ defmodule Substrate do
     mount_opts = Keyword.drop(opts, [:name])
 
     Enum.each(paths, fn path ->
-      :ok = Server.mount(server, path |> File.read!() |> read_manifest(), mount_opts)
+      :ok = Server.mount(server, path |> File.read!() |> read_substrate(), mount_opts)
     end)
 
     {:ok, server}

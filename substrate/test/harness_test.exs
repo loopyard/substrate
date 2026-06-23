@@ -23,8 +23,8 @@ defmodule Substrate.HarnessTest do
     on_exit(fn -> File.rm_rf!(root) end)
 
     {:ok, s} = Substrate.start_link(name: nil)
-    manifest = "priv/manifests/fs.lisp" |> File.read!() |> Substrate.read_manifest()
-    :ok = Substrate.mount(s, manifest, credentials: %{fs_root: root})
+    substrate = "priv/substrates/fs.lisp" |> File.read!() |> Substrate.read_substrate()
+    :ok = Substrate.mount(s, substrate, credentials: %{fs_root: root})
     %{s: s, root: root}
   end
 

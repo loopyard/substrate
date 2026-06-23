@@ -1,9 +1,9 @@
 defmodule Substrate.Auth do
   @moduledoc """
   Resolves a capability's `(auth ...)` declaration into concrete request headers,
-  trusted-side, against the L0 vault. This is the seam that lets a manifest say
+  trusted-side, against the L0 vault. This is the seam that lets a substrate say
   *"this resource is authenticated"* declaratively while the secret itself stays
-  in the vault: the manifest names a `(secret :key …)`, the `auth` form weaves it
+  in the vault: the substrate names a `(secret :key …)`, the `auth` form weaves it
   into a header template, and the membrane resolves the template the instant
   before it crosses into L1 — injecting the result into a per-call ctx the native
   binding reads back. The agent emits `(http/get :url …)` and the call goes out

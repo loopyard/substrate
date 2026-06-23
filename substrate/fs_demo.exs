@@ -29,8 +29,8 @@ File.write!(Path.join(root, "notes/todo.txt"), "buy milk\nship substrate")
 File.write!(Path.join(root, "notes/ideas.txt"), "an operating system for agents")
 
 {:ok, s} = Substrate.start_link(name: nil)
-manifest = "priv/manifests/fs.lisp" |> File.read!() |> Substrate.read_manifest()
-:ok = Substrate.mount(s, manifest, credentials: %{fs_root: root})
+substrate = "priv/substrates/fs.lisp" |> File.read!() |> Substrate.read_substrate()
+:ok = Substrate.mount(s, substrate, credentials: %{fs_root: root})
 IO.puts("\e[1mSubstrate up.\e[0m jail root bound at L0 (the agent can never name it): #{root}")
 
 Demo.hr("1. ATTACH + INTROSPECT — the self-describing surface (bind stripped)")

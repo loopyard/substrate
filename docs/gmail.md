@@ -37,7 +37,7 @@ defmodule Substrate.Gmail do
 end
 ```
 
-### 1b. The capability manifest (L2) — code = data = docs, "in one place"
+### 1b. The capability substrate (L2) — code = data = docs, "in one place"
 
 This is the heart. Each capability's purpose, params, return shape, policy,
 example, and native binding are **one declaration**. The docstring *is* the
@@ -79,7 +79,7 @@ membrane's adjudication pipeline is wired.
 ```elixir
 {:ok, sub} = Substrate.start_link(name: "brad-inbox-agent")
 
-Substrate.mount(sub, Substrate.Gmail.Manifest,
+Substrate.mount(sub, Substrate.Gmail,
   # The ONLY place the credential is named. Never crosses into L2.
   credentials: %{gmail: Substrate.Vault.oauth(:gmail, user: "brad@rocketship.io")},
 
@@ -91,7 +91,7 @@ Substrate.mount(sub, Substrate.Gmail.Manifest,
   ])
 ```
 
-Now `gmail/*` is live in this substrate's registry. Mounting another manifest,
+Now `gmail/*` is live in this substrate's registry. Mounting another substrate,
 or revoking this one, is a runtime registry write — the surface changes under
 the agent without restarting it.
 

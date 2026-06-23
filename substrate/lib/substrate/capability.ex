@@ -1,11 +1,11 @@
 defmodule Substrate.Capability do
   @moduledoc """
   A capability — Substrate's unit of authority, the OS syscall. Declared in
-  exactly **one place** (the manifest): the docstring, the typed params, the
+  exactly **one place** (the substrate): the docstring, the typed params, the
   return shape, the policy, the example, and the native `bind` are a single
   s-expression. Code = data = docs; they cannot drift.
 
-  This module compiles a manifest's AST into `%Capability{}` structs, and
+  This module compiles a substrate's AST into `%Capability{}` structs, and
   renders the **stripped** view the agent sees via `describe` — everything that
   is authority or mechanism (`bind`, the concrete predicates) removed.
   """
@@ -16,7 +16,7 @@ defmodule Substrate.Capability do
 
   @type t :: %__MODULE__{}
 
-  # --- compile a whole manifest ---
+  # --- compile a whole substrate ---
   #
   # A substrate body is capability forms plus optional config forms that bind the
   # vault *in the file*: `(resource :key <literal>)` for a non-secret value (an
@@ -28,7 +28,7 @@ defmodule Substrate.Capability do
   #     (secret   :gh-token   (env "GITHUB_TOKEN"))
   #     (capability …) …)
 
-  def compile_manifest({:list, [{:sym, "substrate"}, {:sym, ns}, {:str, doc} | forms]}) do
+  def compile_substrate({:list, [{:sym, "substrate"}, {:sym, ns}, {:str, doc} | forms]}) do
     {caps, config} =
       Enum.reduce(forms, {[], %{resources: %{}, secrets: []}}, &collect_form/2)
 

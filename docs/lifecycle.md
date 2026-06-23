@@ -15,7 +15,7 @@ a running kernel, not a function you call:
 
 ```elixir
 {:ok, sub} = Substrate.start_link(name: "brad-inbox-agent")
-Substrate.mount(sub, Substrate.Gmail.Manifest, credentials: %{...}, adjudicators: [...])
+Substrate.mount(sub, Substrate.Gmail, credentials: %{...}, adjudicators: [...])
 ```
 
 Two kinds of state live in it across an agent's session ([harness.md](harness.md)):
@@ -36,7 +36,7 @@ The capability surface is **data in a registry**, not code compiled into the
 agent. So changing what the agent can do is an atomic registry write — a
 GenServer message, an ETS write — unrelated to any call stack:
 
-- **Mount** a manifest → new capabilities appear.
+- **Mount** a substrate → new capabilities appear.
 - **Revoke** a capability → it starts returning `:denied`.
 - **Re-policy** a capability → same signature, different adjudication.
 
@@ -168,7 +168,7 @@ Either way the agent only learns the disposition, never the mechanism — it see
 ## Lifecycle, end to end
 
 ```
-start  ─▶  mount manifests, wire adjudicators, bind credentials at L0
+start  ─▶  mount substrates, wire adjudicators, bind credentials at L0
   │
   ├─▶  agent attaches a session
   │

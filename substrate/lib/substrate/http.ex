@@ -2,7 +2,7 @@ defmodule Substrate.HTTP do
   @moduledoc """
   L1 — the native HTTP(S) client. Full authority: it actually opens sockets to
   the outside world. It runs *inside* the trust boundary and is never nameable
-  from L2 (the manifest's `bind` is stripped at the wall).
+  from L2 (the substrate's `bind` is stripped at the wall).
 
   The membrane already refused any host not on the allowlist before this code
   runs (`deny-if host-denied`). This re-checks the host against the vault

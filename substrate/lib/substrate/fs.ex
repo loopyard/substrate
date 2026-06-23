@@ -2,7 +2,7 @@ defmodule Substrate.FS do
   @moduledoc """
   L1 — the native filesystem client. Full authority: it actually touches the
   disk. It runs *inside* the trust boundary and is never nameable from L2 (the
-  manifest's `bind` is stripped at the wall).
+  substrate's `bind` is stripped at the wall).
 
   Every function takes the L0-minted `ctx` and the call args. The jail root is
   read from the vault here — the one place it is named on the hot path. Paths

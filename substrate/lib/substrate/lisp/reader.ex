@@ -4,7 +4,7 @@ defmodule Substrate.Lisp.Reader do
 
   Homoiconicity (DESIGN fork 1) is the whole point: a capability declaration,
   a call to it, and the agent's own program are all the *same* data shape — so
-  the registry can compile a manifest, the membrane can statically inspect a
+  the registry can compile a substrate, the membrane can statically inspect a
   call, and the agent can read its action space in the form it writes actions.
 
   AST nodes:

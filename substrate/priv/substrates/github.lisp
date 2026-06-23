@@ -6,7 +6,7 @@
 ;; authenticated — it never sees, names, or can exfiltrate the token, and
 ;; `describe` never renders it.
 ;;
-;;   GITHUB_TOKEN=ghp_xxx  mix run -e '{:ok, s} = Substrate.load("priv/manifests/github.lisp")'
+;;   GITHUB_TOKEN=ghp_xxx  mix run -e '{:ok, s} = Substrate.load("priv/substrates/github.lisp")'
 
 (substrate gh
   "Authenticated GitHub access over HTTPS, restricted to GitHub hosts. Requests

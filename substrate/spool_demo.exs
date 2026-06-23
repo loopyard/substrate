@@ -33,8 +33,8 @@ File.rm_rf!(root)
 File.mkdir_p!(root)
 
 {:ok, s} = Substrate.start_link(name: nil)
-manifest = "priv/manifests/spool.lisp" |> File.read!() |> Substrate.read_manifest()
-:ok = Substrate.mount(s, manifest, credentials: %{fs_root: root})
+substrate = "priv/substrates/spool.lisp" |> File.read!() |> Substrate.read_substrate()
+:ok = Substrate.mount(s, substrate, credentials: %{fs_root: root})
 IO.puts("\e[1mspool substrate up.\e[0m cap: 10 writes/second")
 
 D.hr("the policy the agent sees (rate kept, mechanism abstracted)")

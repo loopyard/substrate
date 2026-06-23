@@ -30,8 +30,8 @@ File.rm_rf!(root)
 for d <- ~w(downloads cache), do: File.mkdir_p!(Path.join(root, d))
 
 {:ok, s} = Substrate.start_link(name: nil)
-fs = "priv/manifests/fs_locked.lisp" |> File.read!() |> Substrate.read_manifest()
-http = "priv/manifests/http.lisp" |> File.read!() |> Substrate.read_manifest()
+fs = "priv/substrates/fs_locked.lisp" |> File.read!() |> Substrate.read_substrate()
+http = "priv/substrates/http.lisp" |> File.read!() |> Substrate.read_substrate()
 
 # DENY-ALL by default; we punch two small holes, both named only here at L0:
 :ok = Substrate.mount(s, fs, credentials: %{fs_root: root, fs_allow: ["downloads", "cache"]})
