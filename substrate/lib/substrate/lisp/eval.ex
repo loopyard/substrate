@@ -20,7 +20,7 @@ defmodule Substrate.Lisp.Eval do
   alias Substrate.{Server, Show}
   alias Substrate.Lisp.Error
 
-  @specials ~w(do let for if cond case fn defn def and or describe await break quote)
+  @specials ~w(do let for if cond case fn defn def and or describe await break quote grant as)
 
   @doc "Evaluate a program (one or more top-level forms), returning the last value."
   def run(forms, server) when is_list(forms) do
@@ -175,6 +175,47 @@ defmodule Substrate.Lisp.Eval do
   defp special("break", _args, _env, _s), do: throw(:substrate_break)
 
   defp special("quote", [form], env, _s), do: {form, env}
+
+  # --- delegation: the agent authors a STRICTLY NARROWER child surface ---
+  #
+  #   (let [child (grant :caps [fs/read] :fs_allow ["downloads"] :rate "5/min")]
+  #     (as child (fs/read :path "downloads/notes.txt")))
+  #
+  # `grant` asks the trusted server to attenuate this surface; it can only narrow
+  # (a request to widen comes back :denied). It returns an opaque child handle —
+  # never a credential. `as` runs a sub-program against that child, whose own
+  # membrane adjudicates every call independently of the parent's.
+
+  defp special("grant", args, env, s) do
+    case Server.attenuate(s, parse_grant(args, env, s)) do
+      {:ok, child} -> {{:child, child}, env}
+      {:denied, reason} -> {{:disposition, :denied, %{reason: reason}}, env}
+    end
+  end
+
+  defp special("as", [child_expr | body], env, s) do
+    case eval(child_expr, env, s) do
+      {{:child, child}, _} -> {elem(eval_seq(body, env, child), 0), env}
+      _ -> raise Error, "`as` expects a (grant …) handle as its first argument"
+    end
+  end
+
+  # grant takes flat keyword args; :caps is a vector of *unevaluated* capability
+  # symbols, the rest are evaluated values (allowlist vectors, a rate string).
+  defp parse_grant(args, env, s) do
+    args
+    |> Enum.chunk_every(2)
+    |> Enum.reduce(%{caps: nil}, fn
+      [{:kw, :caps}, {:vec, syms}], acc ->
+        Map.put(acc, :caps, Enum.map(syms, fn {:sym, n} -> n end))
+
+      [{:kw, key}, vexpr], acc ->
+        Map.put(acc, key, elem(eval(vexpr, env, s), 0))
+
+      _, _acc ->
+        raise Error, "grant takes keyword args, e.g. (grant :caps [fs/read] :fs_allow [\"x\"])"
+    end)
+  end
 
   # --- capability call: keyword args only; returns a disposition ---
 

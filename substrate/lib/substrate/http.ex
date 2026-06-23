@@ -28,7 +28,9 @@ defmodule Substrate.HTTP do
 
   def get(ctx, %{url: url}) when is_binary(url) do
     with :ok <- allowed_host(ctx, url) do
-      request(url)
+      # Auth headers were resolved from the vault by the membrane and handed to
+      # us in the ctx. We just attach them — we never see the secret's source.
+      request(url, Vault.fetch(ctx, :__auth_headers__, []))
     end
   end
 
@@ -47,11 +49,12 @@ defmodule Substrate.HTTP do
     end
   end
 
-  defp request(url) do
+  defp request(url, headers) do
     http_opts = [timeout: @timeout, connect_timeout: @timeout, ssl: [verify: :verify_none]]
     opts = [body_format: :binary]
+    hdrs = Enum.map(headers, fn {k, v} -> {to_charlist(k), to_charlist(v)} end)
 
-    case :httpc.request(:get, {to_charlist(url), []}, http_opts, opts) do
+    case :httpc.request(:get, {to_charlist(url), hdrs}, http_opts, opts) do
       {:ok, {{_proto, status, _reason}, _headers, body}} ->
         body = clamp(body)
         {:ok, %{status: status, body: body, bytes: byte_size(body), url: url}}

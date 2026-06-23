@@ -90,7 +90,8 @@ not one tool-call per turn:
 
 **In:** `let` `for` `if` `cond` `case` `do` `fn` `defn` `and` `or` `break`,
 agent-defined functions, lists/maps/keywords, arithmetic & string builtins,
-`describe` (introspection), `await` (resolve a queued effect), and capability
+`describe` (introspection), `await` (resolve a queued effect), `grant`/`as`
+(**delegate** a narrower surface to a sub-task — see below), and capability
 calls.
 
 **Out (the wall — these have no referent, not a blocklist):** filesystem access,
@@ -159,6 +160,9 @@ the allowlist nor name anything off it; an *absent* allowlist denies everything.
 
 | Manifest | Demo | Shows |
 |---|---|---|
+| `dir.lisp` | — | **the simplest substrate** — read + write confined to one directory; nothing escapes the jail |
+| `github.lisp` | — | **one self-contained artifact** — `resource` + `secret` + `auth`: authenticated GitHub access where the agent holds no token (load with `Substrate.load/1`) |
+| `fs_locked.lisp` | `delegate_demo.exs` | **the agent authors policy** — readable rules (`reveal_rules`), `grant`/`as` attenuated delegation, the audit log |
 | `fs.lisp` | `fs_demo.exs` | the full tour: wall, path-jail, code-as-action, confirm-if queue + approve/deny, rate-limit, **live revocation** |
 | `archive.lisp` | `archive_demo.exs` | **rate-limited + path-restricted, read-only by construction** (no write capability exists) |
 | `spool.lisp` | `spool_demo.exs` | a write capability **capped at 10 files/second** (per-second window resets) |
@@ -186,30 +190,115 @@ Substrate.revoke(s, "fs/write")   # live registry write — signature stays, err
 
 ---
 
+## One artifact: `load`, secrets, authenticated resources
+
+A manifest can carry its own L0 config — an allowlist (`resource`) and a
+credential pulled from the environment at load (`secret`) — so the whole sealed
+sandbox is **one loadable file** instead of a manifest plus separate mount code.
+`Substrate.load/2` resolves the secrets on the trusted side and hands back a
+running substrate:
+
+```lisp
+(substrate gh
+  "Authenticated GitHub access, allowlisted hosts, rate-clamped."
+  (resource :http_allow ["api.github.com"])
+  (secret   :gh_token   (env "GITHUB_TOKEN"))     ; resolved at load, vaulted
+  (capability gh/get
+    (params (url string "absolute https URL"))
+    (returns (record (status int) (body string) (bytes int)))
+    (auth   (header "Authorization" (str "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
+    (policy (deny-if host-denied) (rate "30/min"))
+    (bind   Substrate.HTTP.get/2)))
+```
+
+```elixir
+{:ok, s} = Substrate.load("priv/manifests/github.lisp")   # env → vault → mounted
+Substrate.eval(s, ~s|(gh/get :url "https://api.github.com/repos/torvalds/linux")|)
+```
+
+The membrane resolves `auth` against the vault microseconds before the socket
+and injects the header. The agent emits `(gh/get :url …)` and the call goes out
+**authenticated while holding nothing** — `auth`, `secret`, and `bind` are all
+stripped at the wall, and no L2 form returns a credential.
+
+## Readable rules (`reveal_rules`)
+
+By default the agent learns a `deny-if` boundary by *hitting* it (honest about
+the `:denied`, silent about the rule). Mount with `reveal_rules: true` and
+`describe` renders each guard as a **glossed rule the agent can reason about** —
+while the **value** stays vaulted:
+
+```elixir
+{:ok, s} = Substrate.load("priv/manifests/fs_locked.lisp",
+             credentials: %{fs_root: root, fs_allow: ["downloads"]}, reveal_rules: true)
+
+Substrate.eval(s, "(describe fs/write)")
+#   (policy (guard "path must stay inside the jail root")
+#           (guard "writes limited to allowlisted directories")   ← the RULE, readable
+#           (rate "20/min"))                                       ← the VALUE never shown
+```
+
+## Delegation: the agent authors a *narrower* policy (`grant` / `as`)
+
+An agent holding authority can carve a **strictly narrower** child surface in
+Lisp and run a sub-task inside it. `grant` can only ever *attenuate* — a request
+to widen comes back `:denied`:
+
+```lisp
+(let [child (grant :caps [fs/write] :fs_allow ["downloads"] :rate "3/min")]
+  (as child
+    (fs/write :path "downloads/out.txt" :content "written by the sub-agent")))
+```
+
+`:caps` ⊆ held capabilities · `:fs_allow`/`:http_allow` ⊆ granted allowlists ·
+`:rate` only tightens. The check runs in trusted code (`Substrate.Server.attenuate/2`),
+the child is an independent membrane, and `grant` returns an **opaque handle**,
+never a credential. The agent authors policy — and can only ever subtract.
+(`delegate_demo.exs` walks the whole arc.)
+
+## Observability: the audit log
+
+Every adjudicated call — and every `grant`, including denied widening attempts —
+is recorded trusted-side. `Substrate.audit/1` returns the trace (oldest first);
+the agent has no L2 path to it:
+
+```elixir
+Substrate.audit(s)
+#=> [%{seq: 1, cap: "fs/write", outcome: {:done, nil}, at: …},
+#    %{seq: 2, cap: "grant",    outcome: {:denied, "cannot widen fs_allow: …"}, …}]
+```
+
+---
+
 ## Project layout
 
 ```
-lib/substrate.ex            public API (start_link, mount, eval, revoke, approve…)
+lib/substrate.ex            public API (start_link, mount, load, eval, revoke,
+                              approve, attenuate, audit…)
 lib/substrate/
   vault.ex                  L0 — the credential store (jail root + allowlists)
   fs.ex                     L1 — native filesystem edge (path-clamped)
-  http.ex                   L1 — native HTTP(S) edge (host-allowlisted)
+  http.ex                   L1 — native HTTP(S) edge (host-allowlisted, auth-injecting)
+  auth.ex                   resolve a capability's `auth` template against the vault
   predicates.ex             trusted policy predicates (jail, zones, allowlists)
-  capability.ex             compile a manifest; render the stripped `describe`
-  membrane.ex               adjudication pipeline → disposition
-  server.ex                 the live registry + rate/queue state (GenServer)
+  capability.ex             compile a manifest (caps + resource/secret/auth);
+                              render the stripped `describe` (abstract or revealed)
+  membrane.ex               adjudication pipeline → disposition; injects auth
+  server.ex                 live registry + rate/queue + audit log + attenuate (GenServer)
   show.ex                   render values back into surface syntax
   lisp/reader.ex            source → s-expression AST
-  lisp/eval.ex              the sandboxed evaluator (zero ambient authority)
-priv/manifests/*.lisp       capability surfaces (fs, archive, spool, zoned,
-                              http, fs_locked)
+  lisp/eval.ex              the sandboxed evaluator (zero ambient authority; grant/as)
+priv/manifests/*.lisp       capability surfaces (dir, fs, archive, spool, zoned,
+                              http, fs_locked, github)
 *_demo.exs                  runnable demos     demos.sh — run them all
 ```
 
 ## Status
 
-Proof-of-concept. The native edge really touches disk (jailed); the membrane,
-disposition model, live registry, capability wall, and policy DSL are real. The
+Proof-of-concept. The native edge really touches disk and the network (jailed +
+allowlisted); the membrane, disposition model, live registry, capability wall,
+policy DSL, in-file secrets/auth (`load`), attenuated delegation (`grant`/`as`),
+readable rules (`reveal_rules`), and the audit log are all real. The
 human-approval "human" is `Substrate.approve/2` / `deny/2` called from the host;
 adjudication is static rules (no LLM monitor yet). See
 [`../DESIGN.md`](../DESIGN.md) for the open forks.

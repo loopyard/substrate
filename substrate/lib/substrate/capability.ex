@@ -10,17 +10,51 @@ defmodule Substrate.Capability do
   is authority or mechanism (`bind`, the concrete predicates) removed.
   """
 
-  alias Substrate.Predicates
+  alias Substrate.{Auth, Predicates}
 
-  defstruct [:name, :doc, :params, :returns, :example, :bind, policy: []]
+  defstruct [:name, :doc, :params, :returns, :example, :bind, :auth, policy: []]
 
   @type t :: %__MODULE__{}
 
-  # --- compile a whole manifest: (substrate <ns> "doc" <cap>...) ---
+  # --- compile a whole manifest ---
+  #
+  # A substrate body is capability forms plus optional config forms that bind the
+  # vault *in the file*: `(resource :key <literal>)` for a non-secret value (an
+  # allowlist), `(secret :key (env "VAR"))` for one pulled from the environment
+  # at load. Both feed the L0 credentials; neither is ever rendered to the agent.
+  #
+  #   (substrate <ns> "doc"
+  #     (resource :http-allow ["api.github.com"])
+  #     (secret   :gh-token   (env "GITHUB_TOKEN"))
+  #     (capability …) …)
 
-  def compile_manifest({:list, [{:sym, "substrate"}, {:sym, ns}, {:str, doc} | caps]}) do
-    {ns, doc, Enum.map(caps, &compile_cap/1)}
+  def compile_manifest({:list, [{:sym, "substrate"}, {:sym, ns}, {:str, doc} | forms]}) do
+    {caps, config} =
+      Enum.reduce(forms, {[], %{resources: %{}, secrets: []}}, &collect_form/2)
+
+    {ns, doc, Enum.reverse(caps), %{config | secrets: Enum.reverse(config.secrets)}}
   end
+
+  defp collect_form({:list, [{:sym, "capability"} | _]} = form, {caps, config}),
+    do: {[compile_cap(form) | caps], config}
+
+  defp collect_form({:list, [{:sym, "resource"}, {:kw, key}, value]}, {caps, config}),
+    do: {caps, %{config | resources: Map.put(config.resources, key, literal(value))}}
+
+  defp collect_form({:list, [{:sym, "secret"}, {:kw, key}, source]}, {caps, config}),
+    do: {caps, %{config | secrets: [{key, compile_source(source)} | config.secrets]}}
+
+  # a resource value is plain literal data — string, int, bool, or a list thereof
+  defp literal({:str, s}), do: s
+  defp literal({:int, n}), do: n
+  defp literal({:bool, b}), do: b
+  defp literal(nil), do: nil
+  defp literal({:vec, items}), do: Enum.map(items, &literal/1)
+  defp literal({:list, items}), do: Enum.map(items, &literal/1)
+
+  # a secret source: `(env "VAR")` resolved at load, or a bare string literal (tests)
+  defp compile_source({:list, [{:sym, "env"}, {:str, var}]}), do: {:env, var}
+  defp compile_source({:str, s}), do: {:lit, s}
 
   defp compile_cap({:list, [{:sym, "capability"}, {:sym, name}, {:str, doc} | clauses]}) do
     base = %__MODULE__{name: name, doc: doc}
@@ -41,6 +75,11 @@ defmodule Substrate.Capability do
 
   defp apply_clause({:list, [{:sym, "bind"}, {:sym, target}]}, cap),
     do: %{cap | bind: compile_bind(target)}
+
+  # (auth (header "Authorization" (str "Bearer " (secret :gh-token)))) — stripped
+  # at the wall like `bind`; resolved against the vault per call by the membrane.
+  defp apply_clause({:list, [{:sym, "auth"} | _]} = form, cap),
+    do: %{cap | auth: Auth.compile(form)}
 
   defp compile_param({:list, [{:sym, name}, type | rest]}) do
     doc = case rest do
@@ -97,18 +136,31 @@ defmodule Substrate.Capability do
   end
 
   @doc """
-  Full stripped declaration. No `bind` (native target — unnameable at L2). No
-  concrete predicate (mechanism). Policy is abstracted: the agent learns a limit
-  exists and that a call *may* be reviewed, never the rule that decides it.
+  Full stripped declaration. No `bind` (native target — unnameable at L2), no
+  `auth` (it names secrets), no concrete predicate (mechanism).
+
+  Policy rendering has two postures, set per-mount by `reveal_rules`:
+
+    * **abstract** (default) — the agent learns a rate limit exists and that a
+      call *may* be reviewed, never the rule that decides a denial. It discovers
+      a `deny-if` boundary the way a process learns a permission error: by
+      calling and reading `:denied`.
+    * **revealed** (`reveal: true`) — each `deny-if` renders as a `(guard …)`
+      with a human/agent-readable gloss of the *rule* ("writes limited to
+      allowlisted directories"), so the agent can *reason* instead of probe.
+      The **value** (which dirs, which hosts) still never crosses the wall — it
+      lives in the vault; only the rule's intent is shown.
   """
-  def describe(%__MODULE__{} = c) do
+  def describe(%__MODULE__{} = c, opts \\ []) do
+    reveal = Keyword.get(opts, :reveal, false)
+
     lines =
       [
         "(capability #{c.name}",
         "  #{inspect(c.doc)}",
         "  (params" <> render_params(c.params) <> ")",
         "  (returns #{print(c.returns)})"
-      ] ++ render_policy(c.policy)
+      ] ++ render_policy(c.policy, reveal)
 
     Enum.join(lines, "\n") <> ")"
   end
@@ -120,12 +172,12 @@ defmodule Substrate.Capability do
     end)
   end
 
-  defp render_policy([]), do: []
+  defp render_policy([], _reveal), do: []
 
-  defp render_policy(rules) do
+  defp render_policy(rules, reveal) do
     inner =
       rules
-      |> Enum.map(&abstract_rule/1)
+      |> Enum.map(&abstract_rule(&1, reveal))
       |> Enum.reject(&is_nil/1)
 
     case inner do
@@ -136,10 +188,23 @@ defmodule Substrate.Capability do
   end
 
   # honest-but-abstract: keep the *fact* of a limit / review, drop the *rule*.
-  defp abstract_rule({:rate, n, w, nil}), do: "(rate #{inspect("#{n}/#{unit(w)}")})"
-  defp abstract_rule({:rate, n, w, {guard, _}}), do: "(rate #{inspect("#{n}/#{unit(w)}")} #{guard})"
-  defp abstract_rule({:confirm_if, _pred, _fun}), do: "(confirm-if human-review)"
-  defp abstract_rule({:deny_if, _pred, _fun}), do: nil
+  defp abstract_rule({:rate, n, w, nil}, _r), do: "(rate #{inspect("#{n}/#{unit(w)}")})"
+  defp abstract_rule({:rate, n, w, {guard, _}}, _r), do: "(rate #{inspect("#{n}/#{unit(w)}")} #{guard})"
+  defp abstract_rule({:confirm_if, _pred, _fun}, _r), do: "(confirm-if human-review)"
+  # the rule, never the value: dropped when abstract, glossed when revealed.
+  defp abstract_rule({:deny_if, _pred, _fun}, false), do: nil
+  defp abstract_rule({:deny_if, pred, _fun}, true), do: "(guard #{inspect(gloss(pred))})"
+
+  # readable intent for each trusted predicate — what it enforces, not what it checks against.
+  defp gloss("escapes-jail"), do: "path must stay inside the jail root"
+  defp gloss("write-denied"), do: "writes limited to allowlisted directories"
+  defp gloss("host-denied"), do: "only allowlisted hosts are reachable"
+  defp gloss("outside-safe"), do: "writes outside the safe area need human review"
+  defp gloss("in-bulk"), do: "applies within the bulk zone"
+  defp gloss("in-data"), do: "applies within the data zone"
+  defp gloss("in-published"), do: "applies within the published zone"
+  defp gloss("in-archive"), do: "applies within the archive zone"
+  defp gloss(other), do: "policy guard: #{other}"
 
   defp unit(1), do: "sec"
   defp unit(60), do: "min"

@@ -22,9 +22,39 @@ defmodule Substrate do
   defdelegate restore(server, name), to: Server
   defdelegate approve(server, handle), to: Server
   defdelegate deny(server, handle), to: Server
+  defdelegate attenuate(server, narrowing), to: Server
+  defdelegate audit(server), to: Server
 
   @doc "Parse a manifest source string into AST ready for `mount/3`."
   def read_manifest(src), do: Reader.read_one(src)
+
+  @doc """
+  Load one or more manifest files into a fresh running substrate — the artifact
+  becomes the runtime. Each file's `resource`/`secret` declarations are resolved
+  (env vars read on this trusted side) and bound into the vault; the agent
+  attaches to the returned server and reaches only what the manifests exposed.
+
+      {:ok, s} = Substrate.load("priv/manifests/github.lisp")
+      {:ok, s} = Substrate.load(["fs_locked.lisp", "github.lisp"], reveal_rules: true)
+
+  `opts` are passed to each `mount` (e.g. `:reveal_rules`, or `:credentials` to
+  override/supplement what the file declares — the integrator's last word).
+  Returns `{:ok, server}`.
+  """
+  def load(path_or_paths, opts \\ [])
+
+  def load(paths, opts) when is_list(paths) do
+    {:ok, server} = Server.start_link(name: Keyword.get(opts, :name))
+    mount_opts = Keyword.drop(opts, [:name])
+
+    Enum.each(paths, fn path ->
+      :ok = Server.mount(server, path |> File.read!() |> read_manifest(), mount_opts)
+    end)
+
+    {:ok, server}
+  end
+
+  def load(path, opts) when is_binary(path), do: load([path], opts)
 
   @doc """
   The harness entry point. Read the source, evaluate it against the live surface,

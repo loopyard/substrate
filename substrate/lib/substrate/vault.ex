@@ -33,4 +33,17 @@ defmodule Substrate.Vault do
   default-deny posture), so the default is the empty list, not a crash.
   """
   def fetch(%__MODULE__{secrets: s}, key, default \\ nil), do: Map.get(s, key, default)
+
+  @doc """
+  Bind one extra value, returning a fresh ctx. Used by the membrane to inject a
+  capability's *resolved* auth headers into the ctx for a single call — the
+  binding reads them back with `fetch`, the agent never sees them. Trusted-only.
+  """
+  def put(%__MODULE__{secrets: s} = v, key, value), do: %{v | secrets: Map.put(s, key, value)}
+
+  @doc """
+  The set of credential keys held — for the operator's eyes only (an audit/debug
+  affordance on the trusted side). There is still no L2 path that reaches this.
+  """
+  def keys(%__MODULE__{secrets: s}), do: Map.keys(s)
 end

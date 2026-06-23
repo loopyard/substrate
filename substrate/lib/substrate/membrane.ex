@@ -113,10 +113,19 @@ defmodule Substrate.Membrane do
   defp execute(cap, ctx, args) do
     {mod, fun} = cap.bind
 
+    # Resolve the capability's auth template against the vault and hand the
+    # binding a ctx carrying the concrete headers. The secret is read here, in
+    # trusted code, microseconds before the socket — never a value in L2.
+    ctx = Substrate.Vault.put(ctx, :__auth_headers__, Substrate.Auth.resolve(cap.auth, ctx))
+
     case apply(mod, fun, [ctx, args]) do
       {:ok, payload} -> disp(:done, payload)
       {:error, reason} -> disp(:denied, %{reason: to_string(reason)})
     end
+  rescue
+    # a native driver (or a misconfigured secret) must not be able to crash the
+    # membrane — it degrades to a denial the agent reads like any other.
+    e -> disp(:denied, %{reason: "binding error: " <> Exception.message(e)})
   end
 
   # --- effect resolution (the human/monitor ruling on a queued effect) ---
