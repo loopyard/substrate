@@ -74,7 +74,7 @@ defmodule Substrate.Agent.ClaudeCode do
       _path ->
         # A trivial prompt; an unauthenticated CLI answers with is_error + a
         # "Please run /login" result rather than failing the process.
-        case chat(bin, nil, 20_000, "Reply with exactly: OK", [
+        case chat(bin, nil, 60_000, "Reply with exactly: OK", [
                %{role: "user", content: "ping"}
              ]) do
           {:ok, _} -> :ok
