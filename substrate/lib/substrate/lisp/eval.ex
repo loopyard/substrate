@@ -20,7 +20,7 @@ defmodule Substrate.Lisp.Eval do
   alias Substrate.{Server, Show}
   alias Substrate.Lisp.{Error, Stdlib}
 
-  @specials ~w(do let for if cond case fn defn def and or describe await break quote grant as)
+  @specials ~w(do let for if cond case fn defn def and or describe await break attempt quote grant as)
 
   # Resource bounds for untrusted evaluation (see `run_guarded/3`). Defaults are
   # generous for real programs and lethal to bombs; override per-call via opts.
@@ -262,6 +262,30 @@ defmodule Substrate.Lisp.Eval do
   end
 
   defp special("break", _args, _env, _s), do: throw(:substrate_break)
+
+  # `attempt` makes failure a *value*: it runs its body and returns a disposition
+  # — `(:ok v)` with the body's value, or `(:fault e)` with `{message: …}` — so a
+  # program recovers from a fault inside one emission (`case`/`cond` already match
+  # dispositions) instead of the whole emission dying on a `raise`.
+  #
+  # The wall it cannot breach: `rescue` catches *exceptions* (every in-language
+  # fault is a `raise Error`), but the step budget and `break` are `throw`s, which
+  # sail straight through. So an agent CANNOT wrap a bomb in `attempt` to escape
+  # the budget — the bound is enforced by a different mechanism than the one
+  # `attempt` intercepts. Bindings made in the body never leak out (env in = env
+  # out): a fault leaves no half-built scope behind.
+  defp special("attempt", body, env, s) do
+    result =
+      try do
+        {v, _} = eval_seq(body, env, s)
+        {:disposition, :ok, v}
+      rescue
+        e in Error -> {:disposition, :fault, %{message: e.message}}
+        e -> {:disposition, :fault, %{message: Exception.message(e)}}
+      end
+
+    {result, env}
+  end
 
   defp special("quote", [form], env, _s), do: {form, env}
 

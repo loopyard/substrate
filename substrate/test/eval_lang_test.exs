@@ -93,4 +93,44 @@ defmodule Substrate.EvalLangTest do
       assert 42 = Substrate.eval(s, "(do (def x 42) (defn get-x [] x) (get-x))")
     end
   end
+
+  describe "attempt: failure becomes a value (a disposition), recoverable in one emission" do
+    test "success returns (:ok value)", %{s: s} do
+      assert {:disposition, :ok, 3} = Substrate.eval(s, "(attempt (+ 1 2))")
+    end
+
+    test "a fault returns (:fault {message …}) instead of killing the emission", %{s: s} do
+      assert {:disposition, :fault, %{message: msg}} = Substrate.eval(s, "(attempt (/ 1 0))")
+      assert msg =~ "division by zero"
+    end
+
+    test "an unbound symbol is caught as a fault, not a crash", %{s: s} do
+      assert {:disposition, :fault, %{message: msg}} = Substrate.eval(s, "(attempt (frobnicate))")
+      assert msg =~ "unbound"
+    end
+
+    test "the existing case matcher unwraps it — recover and continue", %{s: s} do
+      prog = "(case (attempt (/ 1 0)) (:ok v) v (:fault e) (:message e))"
+      assert "division by zero" = Substrate.eval(s, prog)
+
+      ok = "(case (attempt (* 6 7)) (:ok v) v (:fault e) :failed)"
+      assert 42 = Substrate.eval(s, ok)
+    end
+
+    test "bindings made inside attempt never leak out (env in = env out)", %{s: s} do
+      # `x` is bound *inside* the attempt; referencing it afterwards must fault.
+      assert {:fault, msg} = Substrate.eval(s, "(do (attempt (def x 99)) x)")
+      assert msg =~ "unbound"
+    end
+
+    # The wall: `attempt` rescues exceptions, but the step budget is a `throw`.
+    # Wrapping a bomb in `attempt` must NOT let it escape the budget — the kill
+    # unwinds straight past `attempt` to the guarded boundary.
+    test "attempt CANNOT swallow the step-budget kill", %{s: s} do
+      src = "(attempt (do (defn loop [n] (loop (increment n))) (loop 0)))"
+      forms = Reader.read_all(src, atoms: :existing)
+      assert {:fault, msg} = Eval.run_guarded(forms, s, max_steps: 50_000, timeout: 3_000)
+      assert msg =~ "step budget"
+    end
+  end
 end
