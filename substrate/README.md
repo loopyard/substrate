@@ -42,6 +42,37 @@ Two clamps bound the agent on both ends:
 
 ---
 
+## At a glance
+
+The policy — reads run free; **every send waits for a human:**
+
+```lisp
+(capability gmail/send
+  "Send mail — queued for human review."
+  (parameters (to string)
+              (subject string)
+              (body string))
+  (policy (confirm-if always)
+          (rate "20/hour"))
+  (bind Substrate.Gmail.send/2))
+```
+
+The agent using it — one program; each send comes back `(:queued …)`:
+
+```lisp
+(defn reply [id]
+  (let [m (gmail/read :id id)]
+    (gmail/send
+      :to      (:from m)
+      :subject (string "Re: " (:subject m))
+      :body    "Thanks — will follow up.")))
+
+(for [id (:ids (gmail/search :query "is:unread"))]
+  (reply id))
+```
+
+---
+
 ## Architecture
 
 ```
