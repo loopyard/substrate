@@ -53,7 +53,7 @@ Demo.run(s, ~s|(fs/read :path "../../../etc/passwd")|)
 Demo.hr("5. CODE-AS-ACTION — one program: loop + agent-defined fn + dispositions")
 Demo.run(s, """
 (defn summarize [name]
-  (let [r (fs/read :path (str "notes/" name))]
+  (let [r (fs/read :path (string "notes/" name))]
     (case r
       (:done d)   (log name "->" (:bytes d) "bytes")
       (:denied e) (log name "denied"))))
@@ -81,7 +81,7 @@ Demo.run(s, ~s|(await "#{h2}")|)
 Demo.hr("7. RATE-LIMIT — same call, errno flips when the budget is spent (5/min)")
 Demo.run(s, """
 (for [i (list 1 2 3 4 5 6 7)]
-  (case (fs/write :path (str "notes/n" i ".txt") :content "x")
+  (case (fs/write :path (string "notes/n" i ".txt") :content "x")
     (:done r)         (log "write" i "ok ->" (:bytes r) "bytes")
     (:rate-limited e) (log "write" i ":rate-limited retry-after" (:retry_after e) "s")
     (:denied d)       (log "write" i "denied")))

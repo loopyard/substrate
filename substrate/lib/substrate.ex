@@ -48,7 +48,10 @@ defmodule Substrate do
     mount_opts = Keyword.drop(opts, [:name])
 
     Enum.each(paths, fn path ->
-      :ok = Server.mount(server, path |> File.read!() |> read_substrate(), mount_opts)
+      case Server.mount(server, path |> File.read!() |> read_substrate(), mount_opts) do
+        :ok -> :ok
+        {:error, reason} -> raise ArgumentError, reason
+      end
     end)
 
     {:ok, server}

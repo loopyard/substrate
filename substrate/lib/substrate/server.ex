@@ -18,6 +18,7 @@ defmodule Substrate.Server do
   use GenServer
 
   alias Substrate.{Capability, Membrane, Vault}
+  alias Substrate.Lisp.Stdlib
 
   # subs: per-namespace listings; caps: flat name -> %Capability{} registry;
   # creds: the accumulated L0 credential map the vault ctx is minted from;
@@ -46,6 +47,11 @@ defmodule Substrate.Server do
   Mount a substrate, binding its credentials at L0. The only place the jail root
   and allowlists are named. Mounting again *adds* a namespace and merges
   credentials — it does not replace the prior surface.
+
+  Mounting refuses to silently clobber: if a capability name already exists it
+  returns `{:error, reason}` rather than overwriting. Pass `as: "newns"` to
+  rename the substrate's namespace and resolve the clash. A substrate may not
+  claim a stdlib namespace (`math`, `collection`, …) without `as:`.
   """
   def mount(server, substrate_ast, opts) do
     GenServer.call(server, {:mount, substrate_ast, opts})
@@ -100,28 +106,39 @@ defmodule Substrate.Server do
 
   @impl true
   def handle_call({:mount, ast, opts}, _from, state) do
-    {ns, ns_doc, caps, config} = Capability.compile_substrate(ast)
+    {ns0, ns_doc, caps0, config} = Capability.compile_substrate(ast)
 
-    # creds layer: prior mounts < this substrate's own resources/secrets <
-    # explicit mount credentials (the integrator always gets the last word).
-    creds =
-      state.creds
-      |> Map.merge(resolve_config(config))
-      |> Map.merge(Keyword.get(opts, :credentials, %{}))
+    # `as:` renames the namespace at mount — the escape hatch when two substrates
+    # would otherwise collide (the same author ns, or a clash with the stdlib).
+    ns = Keyword.get(opts, :as, ns0)
+    caps = if ns == ns0, do: caps0, else: Enum.map(caps0, &rename_ns(&1, ns0, ns))
 
-    sub = %{ns: ns, doc: ns_doc, order: Enum.map(caps, & &1.name)}
+    with :ok <- check_namespace(ns),
+         :ok <- check_collisions(state.caps, caps) do
+      # creds layer: prior mounts < this substrate's own resources/secrets <
+      # explicit mount credentials (the integrator always gets the last word).
+      creds =
+        state.creds
+        |> Map.merge(resolve_config(config))
+        |> Map.merge(Keyword.get(opts, :credentials, %{}))
 
-    state = %{
-      state
-      | subs: state.subs ++ [sub],
-        caps: Map.merge(state.caps, Map.new(caps, &{&1.name, &1})),
-        creds: creds,
-        ctx: Vault.mint(creds),
-        reveal: Map.put(state.reveal, ns, Keyword.get(opts, :reveal_rules, false))
-    }
+      sub = %{ns: ns, doc: ns_doc, order: Enum.map(caps, & &1.name)}
 
-    {:reply, :ok, state}
+      state = %{
+        state
+        | subs: state.subs ++ [sub],
+          caps: Map.merge(state.caps, Map.new(caps, &{&1.name, &1})),
+          creds: creds,
+          ctx: Vault.mint(creds),
+          reveal: Map.put(state.reveal, ns, Keyword.get(opts, :reveal_rules, false))
+      }
+
+      {:reply, :ok, state}
+    else
+      {:error, _} = err -> {:reply, err, state}
+    end
   end
+
 
   def handle_call({:call, name, args}, _from, state) do
     if Map.has_key?(state.caps, name) do
@@ -219,6 +236,24 @@ defmodule Substrate.Server do
   end
 
   # --- substrate config → vault credentials (resources + resolved secrets) ---
+
+  # rename the leading `ns/` segment of every capability name under this mount
+  defp rename_ns(cap, old, new), do: %{cap | name: String.replace_prefix(cap.name, old <> "/", new <> "/")}
+
+  # a substrate may not claim a stdlib namespace — it would shadow core builtins
+  defp check_namespace(ns) do
+    if ns in Stdlib.namespaces(),
+      do: {:error, "namespace `#{ns}` shadows a stdlib namespace — mount with `as:` to rename"},
+      else: :ok
+  end
+
+  # never silently clobber an already-mounted capability; name the conflict
+  defp check_collisions(existing, caps) do
+    case caps |> Enum.map(& &1.name) |> Enum.filter(&Map.has_key?(existing, &1)) do
+      [] -> :ok
+      clashes -> {:error, "capability name collision: #{Enum.join(clashes, ", ")} already mounted — mount with `as:` to rename the namespace"}
+    end
+  end
 
   defp resolve_config(%{resources: resources, secrets: secrets}) do
     resolved =

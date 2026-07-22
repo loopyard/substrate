@@ -12,17 +12,17 @@
 
   (capability dir/read
     "Read a file inside the directory. Returns the text and its byte length."
-    (params  (path string "file path relative to the directory, e.g. \"notes.txt\""))
-    (returns (record (content string) (bytes int)))
+    (parameters  (path string "file path relative to the directory, e.g. \"notes.txt\""))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if escapes-jail))
     (example (dir/read :path "notes.txt"))
     (bind    Substrate.FS.read/2))
 
   (capability dir/write
     "Write text to a file inside the directory, creating parent dirs as needed."
-    (params  (path    string "file path relative to the directory")
+    (parameters  (path    string "file path relative to the directory")
              (content string "text to write"))
-    (returns (record (bytes int) (path string)))
+    (returns (record (bytes integer) (path string)))
     (policy  (deny-if escapes-jail))
     (example (dir/write :path "notes.txt" :content "buy milk"))
     (bind    Substrate.FS.write/2)))

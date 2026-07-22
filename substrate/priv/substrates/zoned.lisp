@@ -16,9 +16,9 @@
 
   (capability fs/write
     "Write a file. Governance depends on the target zone (see the namespace doc)."
-    (params (path    string "file path: bulk/…, data/…, published/…  (archive/… is read-only)")
+    (parameters (path    string "file path: bulk/…, data/…, published/…  (archive/… is read-only)")
             (content string "text to write"))
-    (returns (record (bytes int) (path string)))
+    (returns (record (bytes integer) (path string)))
     (policy  (deny-if    escapes-jail)      ; never leave the jail
              (deny-if    in-archive)        ; archive zone is read-only
              (confirm-if in-published)      ; published zone needs a human
@@ -28,8 +28,8 @@
 
   (capability fs/read
     "Read any file in the jail — every zone is readable, including archive."
-    (params (path string "file path relative to the jail root"))
-    (returns (record (content string) (bytes int)))
+    (parameters (path string "file path relative to the jail root"))
+    (returns (record (content string) (bytes integer)))
     (policy  (deny-if escapes-jail))
     (example (fs/read :path "archive/2025.txt"))
     (bind    Substrate.FS.read/2)))

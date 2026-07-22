@@ -2,7 +2,8 @@
 File.mkdir_p!("/home/agent")
 File.write!("/home/agent/notes.txt", "buy milk")
 
-{:ok, s}  = Substrate.load("priv/substrates/roots.lisp")   # the SUBSTRATE
+{:ok, s}  = Substrate.load(["priv/substrates/roots.lisp",   # the SUBSTRATE
+                           "priv/substrates/stdio.lisp"])  # + a voice (io/print)
 program   = File.read!("priv/programs/backup_notes.lisp")  # the PROGRAM
 
 IO.puts("== running backup_notes.lisp on the roots substrate ==")

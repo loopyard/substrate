@@ -48,7 +48,7 @@ Demo.hr("2. SURF — GET an allowlisted host (the only network the agent has)")
 Demo.run(s, ~s"""
 (let [r (http/get :url "https://example.com")]
   (case r
-    (:done d)   (str "fetched " (:status d) ", " (:bytes d) " bytes")
+    (:done d)   (string "fetched " (:status d) ", " (:bytes d) " bytes")
     (:denied e) "denied"))
 """)
 

@@ -42,6 +42,37 @@ Two clamps bound the agent on both ends:
 
 ---
 
+## At a glance
+
+The policy — reads run free; **every send waits for a human:**
+
+```lisp
+(capability gmail/send
+  "Send mail — queued for human review."
+  (parameters (to string)
+              (subject string)
+              (body string))
+  (policy (confirm-if always)
+          (rate "20/hour"))
+  (bind Substrate.Gmail.send/2))
+```
+
+The agent using it — one program; each send comes back `(:queued …)`:
+
+```lisp
+(defn reply [id]
+  (let [m (gmail/read :id id)]
+    (gmail/send
+      :to      (:from m)
+      :subject (string "Re: " (:subject m))
+      :body    "Thanks — will follow up.")))
+
+(for [id (:ids (gmail/search :query "is:unread"))]
+  (reply id))
+```
+
+---
+
 ## Architecture
 
 ```
@@ -78,7 +109,7 @@ not one tool-call per turn:
 ```lisp
 ;; one emission: list a dir, read each file, branch on the disposition
 (defn summarize [name]
-  (let [r (fs/read :path (str "notes/" name))]
+  (let [r (fs/read :path (string "notes/" name))]
     (case r
       (:done d)   (log name "->" (:bytes d) "bytes")
       (:denied e) (log name "denied"))))
@@ -109,8 +140,8 @@ shape, policy, example, and native binding are a single s-expression
 ```lisp
 (capability fs/write
   "Write text to a file, creating parent dirs as needed."
-  (params (path string "relative to the jail root") (content string))
-  (returns (record (bytes int) (path string)))
+  (parameters (path string "relative to the jail root") (content string))
+  (returns (record (bytes integer) (path string)))
   (policy  (deny-if    escapes-jail)
            (rate       "5/min")
            (confirm-if outside-safe))
@@ -204,9 +235,9 @@ running substrate:
   (resource :http_allow ["api.github.com"])
   (secret   :gh_token   (env "GITHUB_TOKEN"))     ; resolved at load, vaulted
   (capability gh/get
-    (params (url string "absolute https URL"))
-    (returns (record (status int) (body string) (bytes int)))
-    (auth   (header "Authorization" (str "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
+    (parameters (url string "absolute https URL"))
+    (returns (record (status integer) (body string) (bytes integer)))
+    (auth   (header "Authorization" (string "Bearer " (secret :gh_token))))  ; STRIPPED at the wall
     (policy (deny-if host-denied) (rate "30/min"))
     (bind   Substrate.HTTP.get/2)))
 ```

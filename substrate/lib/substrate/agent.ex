@@ -173,6 +173,24 @@ defmodule Substrate.Agent do
       denied        the membrane refused (a reason is attached)
       fault         YOUR program was bad (unbound symbol, bad call) — fix and retry
 
+    The language is a small Lisp — a real computer, not a menu:
+
+      forms     (do ...) (let [x 1] ...) (if c a b) (cond (t v)...) (case v ...)
+                (fn [x] ...) (defn f [x] ...) recursion works, incl. mutual
+                (and ..) (or ..) (def x v) (quote f) (grant ...) (as child ...)
+      math      + - * / quotient remainder modulo increment decrement absolute minimum maximum  < > <= >= =  not
+      seqs      list count first rest element-at reverse sort prepend append concatenate range
+                map filter reduce contains?
+      maps      get associate keys values    strings: string join split uppercase lowercase
+                                                 starts-with? ends-with?
+      json      parse-json (-> string-keyed map) to-json    truth: all but false/nil
+
+    Capabilities are namespaced `ns/name` (e.g. fs/read). Builtins are bare,
+    but also reachable namespaced (collection/reduce, string/split, math/modulo) — handy if
+    you define your own `reduce`: the bare name is yours, collection/reduce is the builtin.
+    Build a result map key with a string, read it with (get m "key"); keyword
+    accessors like (:body r) read dispositions and known keys.
+
     Rules of engagement:
 
     - Emit EXACTLY ONE program per turn, inside a ```lisp fenced code block.
